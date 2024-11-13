@@ -1,24 +1,28 @@
+const hre = require("hardhat");
+
 async function main() {
-    // Obține semnătura contului cu care vei implementa contractul
-    const [deployer] = await ethers.getSigners();
-    console.log("Deploying contracts with the account:", deployer.address);
+  const [deployer] = await hre.ethers.getSigners();
+  console.log("Deploying contracts with the account:", deployer.address);
 
-    // Obține instanța contractului Ticketing
-    const Ticketing = await ethers.getContractFactory("Ticketing");
-    
-    // Implementare contract pe blockchain
-    const ticketing = await Ticketing.deploy();
-    
-    // Așteaptă să se finalizeze implementarea
-    await ticketing.deployed();
+  // Deploy EventManager
+  const EventManager = await hre.ethers.getContractFactory("EventManager");
+  const eventManager = await EventManager.deploy();
+  await eventManager.deployed();
+  console.log("EventManager deployed to:", eventManager.address);
 
-    console.log("Ticketing contract deployed to address:", ticketing.address);
+  // Deploy TicketNFT with the EventManager address and a Chainlink oracle address for testing (e.g., ETH/USD on Rinkeby or Goerli)
+  const TicketNFT = await hre.ethers.getContractFactory("TicketNFT");
+  const priceFeedAddress = "0xYourPriceFeedAddress"; // Replace with a valid oracle address
+  const uri = "https://your-metadata-url.com"; // Replace with a valid metadata URI
+  const ticketNFT = await TicketNFT.deploy(eventManager.address, uri, priceFeedAddress);
+  await ticketNFT.deployed();
+  console.log("TicketNFT deployed to:", ticketNFT.address);
 }
 
-// Rulează funcția principală și gestionează eventualele erori
+
 main()
-    .then(() => process.exit(0))
-    .catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
