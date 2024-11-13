@@ -18,6 +18,7 @@ contract TicketNFT is ERC1155, Ownable {
     // Constructor with URI, EventManager, and Oracle parameters
      constructor(address _eventManager, string memory uri, address initialOwner) ERC1155(uri) Ownable(initialOwner) {
         eventManager = EventManager(_eventManager);
+        priceFeed = AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306);
     }
 
     function buyTicket(uint256 _eventId, uint256 quantity) external payable {

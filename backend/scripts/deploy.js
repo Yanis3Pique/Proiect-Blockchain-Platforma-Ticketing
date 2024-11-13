@@ -12,7 +12,7 @@ async function main() {
 
   // Deploy TicketNFT with the EventManager address and a Chainlink oracle address for testing (e.g., ETH/USD on Rinkeby or Goerli)
   const TicketNFT = await hre.ethers.getContractFactory("TicketNFT");
-  const priceFeedAddress = "0xYourPriceFeedAddress"; // Replace with a valid oracle address
+  const priceFeedAddress = "0x694AA1769357215DE4FAC081bf1f309aDC325306"; // Replace with a valid oracle address
   const uri = "https://your-metadata-url.com"; // Replace with a valid metadata URI
   const ticketNFT = await TicketNFT.deploy(eventManager.address, uri, priceFeedAddress);
   await ticketNFT.deployed();
