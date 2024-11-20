@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-    const contractAddress = "0xFb93768cb6fA102f40bc03100D0986503c82A3a8"; // Adresa TicketingPlatform
+    const contractAddress = "0x86Dd4A46B95460d1AFD63DA97886952dcf1F8c22"; // Adresa TicketingPlatform
     const TicketingPlatform = await ethers.getContractFactory("TicketingPlatform");
     const ticketingPlatform = TicketingPlatform.attach(contractAddress);
 
