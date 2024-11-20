@@ -1,28 +1,38 @@
-const hre = require("hardhat");
+const { ethers, network } = require("hardhat");
 
 async function main() {
-  const [deployer] = await hre.ethers.getSigners();
+  // Obține contul de deplasare
+  const [deployer] = await ethers.getSigners();
   console.log("Deploying contracts with the account:", deployer.address);
 
-  // Deploy EventManager
-  const EventManager = await hre.ethers.getContractFactory("EventManager");
-  const eventManager = await EventManager.deploy();
-  await eventManager.deployed();
-  console.log("EventManager deployed to:", eventManager.address);
+  // Afișează soldul contului
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log("Account balance:", balance, "ETH");
 
-  // Deploy TicketNFT with the EventManager address and a Chainlink oracle address for testing (e.g., ETH/USD on Rinkeby or Goerli)
-  const TicketNFT = await hre.ethers.getContractFactory("TicketNFT");
-  const priceFeedAddress = "0x694AA1769357215DE4FAC081bf1f309aDC325306"; // Replace with a valid oracle address
-  const uri = "https://your-metadata-url.com"; // Replace with a valid metadata URI
-  const ticketNFT = await TicketNFT.deploy(eventManager.address, uri, priceFeedAddress);
-  await ticketNFT.deployed();
-  console.log("TicketNFT deployed to:", ticketNFT.address);
+  // Adresa Chainlink Price Feed pentru ETH/USD pe Sepolia
+  let priceFeedAddress;
+  if (network.name === "sepolia") {
+    priceFeedAddress = "0x694AA1769357215DE4FAC081bf1f309aDC325306"; // ETH/USD Chainlink Price Feed pe Sepolia
+  } else {
+    throw new Error("Unsupported network");
+  }
+
+  // Deploiază contractul TicketingPlatform
+  const TicketingPlatform = await ethers.getContractFactory("TicketingPlatform");
+  console.log("Deploying TicketingPlatform...");
+  const ticketingPlatform = await TicketingPlatform.deploy(priceFeedAddress);
+
+  // Așteaptă confirmarea tranzacției de deplasare
+  const txReceipt = await ticketingPlatform.deploymentTransaction().wait();
+  console.log("TicketingPlatform deployed to:", ticketingPlatform.target);
+
+  // Afișează hash-ul tranzacției
+  console.log("Transaction hash:", txReceipt.transactionHash);
 }
-
 
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error(error);
+    console.error("Error deploying contracts:", error);
     process.exit(1);
   });
