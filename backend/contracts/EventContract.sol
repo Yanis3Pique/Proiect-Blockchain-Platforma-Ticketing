@@ -31,11 +31,18 @@ contract EventContract is ERC721 {
 
     // Evenimente
     event TicketPurchased(uint256 indexed ticketId, address indexed buyer);
-    event TicketTransferred(uint256 indexed ticketId, address indexed from, address indexed to);
+    event TicketTransferred(
+        uint256 indexed ticketId,
+        address indexed from,
+        address indexed to
+    );
 
     // Modificatori
     modifier onlyOrganizer() {
-        require(msg.sender == organizer, "Doar organizatorul poate apela aceasta functie.");
+        require(
+            msg.sender == organizer,
+            "Doar organizatorul poate apela aceasta functie."
+        );
         _;
     }
 
@@ -64,13 +71,7 @@ contract EventContract is ERC721 {
 
     // Functie pentru a obtine pretul actual ETH/USD
     function getLatestPrice() public view returns (int) {
-        (
-            , 
-            int price,
-            ,
-            ,
-            
-        ) = priceFeed.latestRoundData();
+        (, int price, , , ) = priceFeed.latestRoundData();
         return price;
     }
 
@@ -79,7 +80,7 @@ contract EventContract is ERC721 {
         int ethPrice = getLatestPrice(); // Pretul ETH in USD cu 8 zecimale
         require(ethPrice > 0, "Pretul ETH nu este valid.");
 
-        uint256 adjustedPrice = uint256(ethPrice) * 1e10; // Ajustam pretul la 18 zecimale
+        uint256 adjustedPrice = uint256(ethPrice) / 1e8; // Ajustam pretul la 18 zecimale
 
         uint256 priceInWei = (ticketPriceUSD * 1e18) / adjustedPrice; // Calculam pretul biletului in Wei
 
@@ -90,7 +91,10 @@ contract EventContract is ERC721 {
     function buyTicket() public payable {
         require(ticketsAvailable > 0, "Nu mai sunt bilete disponibile.");
         uint256 ticketPriceInWei = getTicketPriceInWei();
-        require(msg.value >= ticketPriceInWei, "Valoarea trimisa nu este suficienta pentru a cumpara un bilet.");
+        require(
+            msg.value >= ticketPriceInWei,
+            "Valoarea trimisa nu este suficienta pentru a cumpara un bilet."
+        );
 
         // Transferul sumei catre organizator
         organizer.transfer(msg.value);
