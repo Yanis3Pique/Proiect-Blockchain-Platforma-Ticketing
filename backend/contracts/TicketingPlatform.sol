@@ -9,7 +9,7 @@ contract TicketingPlatform {
 
     event EventCreated(uint256 indexed eventId, address indexed eventAddress, address indexed organizer);
 
-    // Adresa Price Feed-ului Chainlink
+    // Address of the Chainlink Price Feed
     address public priceFeedAddress;
 
     constructor(address _priceFeedAddress) {
@@ -20,11 +20,11 @@ contract TicketingPlatform {
         string memory _eventName,
         string memory _eventLocation,
         uint256 _eventDate,
-        uint256 _ticketPriceUSD,
+        uint256 _ticketPriceUSD, // Ticket price in USD with no decimals (e.g., 50 for $50)
         uint256 _ticketsAvailable
     ) public {
-        require(_eventDate > block.timestamp, "Data evenimentului trebuie sa fie in viitor.");
-        require(_ticketsAvailable > 0, "Trebuie sa existe cel putin un bilet disponibil.");
+        require(_eventDate > block.timestamp, "Event date must be in the future.");
+        require(_ticketsAvailable > 0, "There must be at least one ticket available.");
 
         EventContract newEvent = new EventContract(
             nextEventId,
@@ -33,7 +33,7 @@ contract TicketingPlatform {
             _eventDate,
             _ticketPriceUSD,
             _ticketsAvailable,
-            payable(msg.sender),
+            payable(msg.sender), // Pass the organizer's address,
             priceFeedAddress
         );
 

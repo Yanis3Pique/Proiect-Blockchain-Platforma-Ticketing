@@ -4,8 +4,10 @@ pragma solidity ^0.8.0;
 // Importuri necesare
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "hardhat/console.sol";
 
-contract EventContract is ERC721 {
+contract EventContract is ERC721, Ownable {
     // Structura pentru un bilet
     struct Ticket {
         uint256 ticketId;
@@ -21,10 +23,17 @@ contract EventContract is ERC721 {
     uint256 public ticketPriceUSD; // Pretul biletului in USD
     uint256 public ticketsAvailable;
     address payable public organizer;
+    uint256 public nextTicketId;
+    bool public isCancelled;
 
     // Mapping pentru bilete
     mapping(uint256 => Ticket) public tickets;
-    uint256 public nextTicketId;
+
+    // Mapping to keep track of ticket price paid per ticket ID
+    mapping(uint256 => uint256) public ticketPricesPaid;
+
+    // Mapping for withdrawal amounts
+    mapping(address => uint256) public pendingWithdrawals;
 
     // Chainlink Price Feed
     AggregatorV3Interface internal priceFeed;
@@ -36,6 +45,13 @@ contract EventContract is ERC721 {
         address indexed from,
         address indexed to
     );
+    event EventCancelled();
+    event TicketRefunded(
+        uint256 indexed ticketId, 
+        address indexed owner, 
+        uint256 refundAmount
+    );
+    event TicketInvalidated(uint256 indexed ticketId);
 
     // Modificatori
     modifier onlyOrganizer() {
@@ -43,6 +59,12 @@ contract EventContract is ERC721 {
             msg.sender == organizer,
             "Doar organizatorul poate apela aceasta functie."
         );
+        _;
+    }
+
+    // Modifier to check if the event is not cancelled
+    modifier eventNotCancelled() {
+        require(!isCancelled, "Event is cancelled.");
         _;
     }
 
@@ -55,7 +77,7 @@ contract EventContract is ERC721 {
         uint256 _ticketsAvailable,
         address payable _organizer,
         address _priceFeedAddress // Adresa Price Feed-ului Chainlink
-    ) ERC721(_eventName, "TKT") {
+    ) ERC721(_eventName, "TKT") Ownable(msg.sender) {
         eventId = _eventId;
         eventName = _eventName;
         eventLocation = _eventLocation;
@@ -64,58 +86,204 @@ contract EventContract is ERC721 {
         ticketsAvailable = _ticketsAvailable;
         organizer = _organizer;
         nextTicketId = 1;
+        isCancelled = false;
 
         // Initializarea Chainlink Price Feed
         priceFeed = AggregatorV3Interface(_priceFeedAddress);
+
+        // Transfer ownership to the organizer
+        transferOwnership(_organizer);
     }
 
-    // Functie pentru a obtine pretul actual ETH/USD
-    function getLatestPrice() public view returns (int) {
-        (, int price, , , ) = priceFeed.latestRoundData();
-        return price;
+    // Function to get the latest ETH/USD price from Chainlink
+    function getLatestPrice() internal view returns (uint256) {
+        (, int256 price, , , ) = priceFeed.latestRoundData();
+        require(price > 0, "Invalid ETH price.");
+        return uint256(price); // Price in USD with 8 decimals
     }
 
     // Functie pentru a calcula pretul biletului in Wei
     function getTicketPriceInWei() public view returns (uint256) {
-        int ethPrice = getLatestPrice(); // Pretul ETH in USD cu 8 zecimale
+        uint256 ethPrice = getLatestPrice(); // Pretul ETH in USD cu 8 zecimale
         require(ethPrice > 0, "Pretul ETH nu este valid.");
 
-        uint256 adjustedPrice = uint256(ethPrice) / 1e8; // Ajustam pretul la 18 zecimale
-
-        uint256 priceInWei = (ticketPriceUSD * 1e18) / adjustedPrice; // Calculam pretul biletului in Wei
+        uint256 priceInWei = (ticketPriceUSD * 1e26) / uint256(ethPrice); // Calculam pretul biletului in Wei
 
         return priceInWei;
     }
 
-    // Functie pentru a cumpara un bilet
-    function buyTicket() public payable {
-        require(ticketsAvailable > 0, "Nu mai sunt bilete disponibile.");
+    // Function to buy tickets
+    function buyTickets(uint256 _quantity) public payable eventNotCancelled {
+        require(_quantity > 0, "Must buy at least one ticket.");
+        require(ticketsAvailable >= _quantity, "Not enough tickets available.");
+        require(block.timestamp < eventDate, "Cannot purchase tickets after event date.");
+
         uint256 ticketPriceInWei = getTicketPriceInWei();
-        require(
-            msg.value >= ticketPriceInWei,
-            "Valoarea trimisa nu este suficienta pentru a cumpara un bilet."
-        );
+        uint256 totalPriceWithoutFee = ticketPriceInWei * _quantity;
 
-        // Transferul sumei catre organizator
-        organizer.transfer(msg.value);
+        // Calculate the service fee
+        uint256 serviceFee = calculateServiceFee(totalPriceWithoutFee);
+        uint256 totalPriceWithFee = totalPriceWithoutFee + serviceFee;
 
-        // Crearea biletului
-        _safeMint(msg.sender, nextTicketId);
-        emit TicketPurchased(nextTicketId, msg.sender);
+        require(msg.value >= totalPriceWithFee, "Insufficient funds to purchase tickets.");
 
-        nextTicketId++;
-        ticketsAvailable--;
+        ticketsAvailable -= _quantity;
+        pendingWithdrawals[owner()] += msg.value;
+
+        // Mint tickets and create Ticket instances
+        for (uint256 i = 0; i < _quantity; i++) {
+            uint256 ticketId = nextTicketId;
+            _safeMint(msg.sender, ticketId);
+
+            tickets[ticketId] = Ticket({
+                ticketId: ticketId,
+                owner: msg.sender,
+                isValid: true
+            });
+
+            // Record the price paid for the ticket
+            ticketPricesPaid[ticketId] = ticketPriceInWei;
+
+            emit TicketPurchased(ticketId, msg.sender);
+
+            nextTicketId++;
+        }
     }
 
-    // Functie pentru a transfera un bilet catre alta adresa
-    function transferTicket(uint256 _ticketId, address _to) public {
-        require(ownerOf(_ticketId) == msg.sender, "Nu detineti acest bilet.");
+    function transferTicket(uint256 _ticketId, address _to) public eventNotCancelled {
+        require(ownerOf(_ticketId) == msg.sender, "You do not own this ticket.");
+        require(block.timestamp < eventDate, "Cannot transfer tickets after the event date.");
+
         _transfer(msg.sender, _to, _ticketId);
+        tickets[_ticketId].owner = _to;
+
         emit TicketTransferred(_ticketId, msg.sender, _to);
     }
 
-    // Functie pentru a invalida un bilet
+    function transferTickets(uint256[] memory _ticketIds, address _to) public eventNotCancelled {
+        for (uint256 i = 0; i < _ticketIds.length; i++) {
+            uint256 ticketId = _ticketIds[i];
+            if (ownerOf(ticketId) == msg.sender && tickets[ticketId].isValid) {
+                _transfer(msg.sender, _to, ticketId);
+                tickets[ticketId].owner = _to;
+
+                emit TicketTransferred(ticketId, msg.sender, _to);
+            }
+        }
+    }
+
     function invalidateTicket(uint256 _ticketId) public onlyOrganizer {
+        require(tickets[_ticketId].isValid, "Ticket is already invalid.");
         _burn(_ticketId);
+        tickets[_ticketId].isValid = false;
+
+        emit TicketInvalidated(_ticketId);
+    }
+
+    function invalidateTickets(uint256[] memory _ticketIds) public onlyOrganizer {
+        for (uint256 i = 0; i < _ticketIds.length; i++) {
+            uint256 ticketId = _ticketIds[i];
+            if (tickets[ticketId].isValid) {
+                _burn(ticketId);
+                tickets[ticketId].isValid = false;
+
+                emit TicketInvalidated(ticketId);
+            }
+        }
+    }
+
+    function refundTicket(uint256 _ticketId) public {
+        require(isCancelled, "Event is not cancelled.");
+        require(ownerOf(_ticketId) == msg.sender, "You do not own this ticket.");
+        require(tickets[_ticketId].isValid, "Ticket is already invalid.");
+
+        uint256 refundAmount = ticketPricesPaid[_ticketId];
+        require(refundAmount > 0, "No refund available for this ticket.");
+
+        // Deduct service fee from refund amount
+        uint256 serviceFee = calculateServiceFee(refundAmount);
+        uint256 refundAfterFee = refundAmount - serviceFee;
+
+        tickets[_ticketId].isValid = false;
+        _burn(_ticketId);
+
+        ticketPricesPaid[_ticketId] = 0;
+
+        payable(msg.sender).transfer(refundAfterFee);
+
+        emit TicketRefunded(_ticketId, msg.sender, refundAfterFee);
+    }
+
+    function refundTickets(uint256[] memory _ticketIds) public {
+        require(isCancelled, "Event is not cancelled.");
+
+        for (uint256 i = 0; i < _ticketIds.length; i++) {
+            uint256 ticketId = _ticketIds[i];
+            if (ownerOf(ticketId) == msg.sender && tickets[ticketId].isValid) {
+                uint256 refundAmount = ticketPricesPaid[ticketId];
+                if (refundAmount > 0) {
+                    // Deduct service fee from refund amount
+                    uint256 serviceFee = calculateServiceFee(refundAmount);
+                    uint256 refundAfterFee = refundAmount - serviceFee;
+
+                    tickets[ticketId].isValid = false;
+                    _burn(ticketId);
+
+                    ticketPricesPaid[ticketId] = 0;
+
+                    payable(msg.sender).transfer(refundAfterFee);
+
+                    emit TicketRefunded(ticketId, msg.sender, refundAfterFee);
+                }
+            }
+        }
+    }
+
+    // Function to cancel the event
+    function cancelEvent() public onlyOwner {
+        require(!isCancelled, "Event is already cancelled.");
+        isCancelled = true;
+        emit EventCancelled();
+    }
+
+    // Function for the organizer to withdraw funds
+    function withdrawFunds() public onlyOwner {
+        require(!isCancelled, "Cannot withdraw funds if the event is cancelled.");
+        uint256 amount = pendingWithdrawals[msg.sender];
+        require(amount > 0, "No funds to withdraw.");
+
+        uint256 serviceFee = calculateServiceFee(amount);
+        uint256 withdrawalAfterFee = amount - serviceFee;
+
+        pendingWithdrawals[msg.sender] = 0;
+
+        payable(msg.sender).transfer(withdrawalAfterFee);
+    }
+
+    // Example of an external function
+    function getEventDetails() external view returns (
+        uint256,
+        string memory,
+        string memory,
+        uint256,
+        uint256,
+        uint256,
+        address
+    ) {
+        return (
+            eventId,
+            eventName,
+            eventLocation,
+            eventDate,
+            ticketPriceUSD,
+            ticketsAvailable,
+            owner()
+        );
+    }
+
+    // Example of a pure function
+    function calculateServiceFee(uint256 _amount) private pure returns (uint256) {
+        // We chose a 2% service fee
+        return (_amount * 2) / 100;
     }
 }
