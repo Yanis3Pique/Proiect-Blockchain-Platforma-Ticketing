@@ -34,7 +34,8 @@ contract TicketingPlatform {
             _ticketPriceUSD,
             _ticketsAvailable,
             payable(msg.sender), // Pass the organizer's address,
-            priceFeedAddress
+            priceFeedAddress,
+            payable(msg.sender) // Pass the organizer's address
         );
 
         events[nextEventId] = address(newEvent);
