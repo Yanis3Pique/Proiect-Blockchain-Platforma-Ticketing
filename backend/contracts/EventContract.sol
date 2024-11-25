@@ -5,10 +5,10 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "hardhat/console.sol";
 
-contract EventContract is ERC721, Ownable {
+contract EventContract is ERC721, Ownable, ReentrancyGuard {
     // Structura pentru un bilet
     struct Ticket {
         uint256 ticketId;
@@ -48,8 +48,8 @@ contract EventContract is ERC721, Ownable {
     );
     event EventCancelled();
     event TicketRefunded(
-        uint256 indexed ticketId, 
-        address indexed owner, 
+        uint256 indexed ticketId,
+        address indexed owner,
         uint256 refundAmount
     );
     event TicketInvalidated(uint256 indexed ticketId);
@@ -120,7 +120,10 @@ contract EventContract is ERC721, Ownable {
     function buyTickets(uint256 _quantity) public payable eventNotCancelled {
         require(_quantity > 0, "Must buy at least one ticket.");
         require(ticketsAvailable >= _quantity, "Not enough tickets available.");
-        require(block.timestamp < eventDate, "Cannot purchase tickets after event date.");
+        require(
+            block.timestamp < eventDate,
+            "Cannot purchase tickets after event date."
+        );
 
         uint256 ticketPriceInWei = getTicketPriceInWei();
         uint256 totalPriceWithoutFee = ticketPriceInWei * _quantity;
@@ -129,7 +132,10 @@ contract EventContract is ERC721, Ownable {
         uint256 serviceFee = calculateServiceFee(totalPriceWithoutFee);
         uint256 totalPriceWithFee = totalPriceWithoutFee + serviceFee;
 
-        require(msg.value >= totalPriceWithFee, "Insufficient funds to purchase tickets.");
+        require(
+            msg.value >= totalPriceWithFee,
+            "Insufficient funds to purchase tickets."
+        );
 
         ticketsAvailable -= _quantity;
         pendingWithdrawals[owner()] += msg.value;
@@ -154,9 +160,18 @@ contract EventContract is ERC721, Ownable {
         }
     }
 
-    function transferTicket(uint256 _ticketId, address _to) public eventNotCancelled {
-        require(ownerOf(_ticketId) == msg.sender, "You do not own this ticket.");
-        require(block.timestamp < eventDate, "Cannot transfer tickets after the event date.");
+    function transferTicket(
+        uint256 _ticketId,
+        address _to
+    ) public eventNotCancelled {
+        require(
+            ownerOf(_ticketId) == msg.sender,
+            "You do not own this ticket."
+        );
+        require(
+            block.timestamp < eventDate,
+            "Cannot transfer tickets after the event date."
+        );
 
         _transfer(msg.sender, _to, _ticketId);
         tickets[_ticketId].owner = _to;
@@ -164,7 +179,10 @@ contract EventContract is ERC721, Ownable {
         emit TicketTransferred(_ticketId, msg.sender, _to);
     }
 
-    function transferTickets(uint256[] memory _ticketIds, address _to) public eventNotCancelled {
+    function transferTickets(
+        uint256[] memory _ticketIds,
+        address _to
+    ) public eventNotCancelled {
         for (uint256 i = 0; i < _ticketIds.length; i++) {
             uint256 ticketId = _ticketIds[i];
             if (ownerOf(ticketId) == msg.sender && tickets[ticketId].isValid) {
@@ -184,7 +202,9 @@ contract EventContract is ERC721, Ownable {
         emit TicketInvalidated(_ticketId);
     }
 
-    function invalidateTickets(uint256[] memory _ticketIds) public onlyOrganizer {
+    function invalidateTickets(
+        uint256[] memory _ticketIds
+    ) public onlyOrganizer {
         for (uint256 i = 0; i < _ticketIds.length; i++) {
             uint256 ticketId = _ticketIds[i];
             if (tickets[ticketId].isValid) {
@@ -224,7 +244,10 @@ contract EventContract is ERC721, Ownable {
 
     // Function for the organizer to withdraw funds
     function withdrawFunds() public onlyOwner nonReentrant {
-        require(!isCancelled, "Cannot withdraw funds if the event is cancelled.");
+        require(
+            !isCancelled,
+            "Cannot withdraw funds if the event is cancelled."
+        );
         uint256 amount = pendingWithdrawals[msg.sender];
         require(amount > 0, "No funds to withdraw.");
 
@@ -236,7 +259,6 @@ contract EventContract is ERC721, Ownable {
         (bool success, ) = msg.sender.call{value: withdrawalAfterFee}("");
         require(success, "Withdrawal failed.");
     }
-
 
     function withdrawRefund() public nonReentrant {
         uint256 amount = pendingWithdrawals[msg.sender];
@@ -250,15 +272,19 @@ contract EventContract is ERC721, Ownable {
     }
 
     // Example of an external function
-    function getEventDetails() external view returns (
-        uint256,
-        string memory,
-        string memory,
-        uint256,
-        uint256,
-        uint256,
-        address
-    ) {
+    function getEventDetails()
+        external
+        view
+        returns (
+            uint256,
+            string memory,
+            string memory,
+            uint256,
+            uint256,
+            uint256,
+            address
+        )
+    {
         return (
             eventId,
             eventName,
@@ -271,7 +297,9 @@ contract EventContract is ERC721, Ownable {
     }
 
     // Example of a pure function
-    function calculateServiceFee(uint256 _amount) private pure returns (uint256) {
+    function calculateServiceFee(
+        uint256 _amount
+    ) private pure returns (uint256) {
         // We chose a 2% service fee
         return (_amount * 2) / 100;
     }
