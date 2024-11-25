@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "hardhat/console.sol";
 
 contract EventContract is ERC721, Ownable {
@@ -109,6 +110,9 @@ contract EventContract is ERC721, Ownable {
 
         uint256 priceInWei = (ticketPriceUSD * 1e26) / uint256(ethPrice); // Calculam pretul biletului in Wei
 
+        // output the price in Wei for test
+        console.log("Price in Wei: %s", priceInWei);
+
         return priceInWei;
     }
 
@@ -192,62 +196,34 @@ contract EventContract is ERC721, Ownable {
         }
     }
 
-    function refundTicket(uint256 _ticketId) public {
-        require(isCancelled, "Event is not cancelled.");
-        require(ownerOf(_ticketId) == msg.sender, "You do not own this ticket.");
-        require(tickets[_ticketId].isValid, "Ticket is already invalid.");
-
-        uint256 refundAmount = ticketPricesPaid[_ticketId];
-        require(refundAmount > 0, "No refund available for this ticket.");
-
-        // Deduct service fee from refund amount
-        uint256 serviceFee = calculateServiceFee(refundAmount);
-        uint256 refundAfterFee = refundAmount - serviceFee;
-
-        tickets[_ticketId].isValid = false;
-        _burn(_ticketId);
-
-        ticketPricesPaid[_ticketId] = 0;
-
-        payable(msg.sender).transfer(refundAfterFee);
-
-        emit TicketRefunded(_ticketId, msg.sender, refundAfterFee);
-    }
-
-    function refundTickets(uint256[] memory _ticketIds) public {
-        require(isCancelled, "Event is not cancelled.");
-
-        for (uint256 i = 0; i < _ticketIds.length; i++) {
-            uint256 ticketId = _ticketIds[i];
-            if (ownerOf(ticketId) == msg.sender && tickets[ticketId].isValid) {
-                uint256 refundAmount = ticketPricesPaid[ticketId];
-                if (refundAmount > 0) {
-                    // Deduct service fee from refund amount
-                    uint256 serviceFee = calculateServiceFee(refundAmount);
-                    uint256 refundAfterFee = refundAmount - serviceFee;
-
-                    tickets[ticketId].isValid = false;
-                    _burn(ticketId);
-
-                    ticketPricesPaid[ticketId] = 0;
-
-                    payable(msg.sender).transfer(refundAfterFee);
-
-                    emit TicketRefunded(ticketId, msg.sender, refundAfterFee);
-                }
-            }
-        }
-    }
-
     // Function to cancel the event
     function cancelEvent() public onlyOwner {
         require(!isCancelled, "Event is already cancelled.");
         isCancelled = true;
+
+        // refund all ticket owners
+        refundAllTickets();
+
         emit EventCancelled();
     }
 
+    function refundAllTickets() private {
+        for (uint256 i = 1; i < nextTicketId; i++) {
+            if (tickets[i].isValid) {
+                address ticketOwner = tickets[i].owner;
+                uint256 refundAmount = ticketPricesPaid[i];
+                pendingWithdrawals[ticketOwner] += refundAmount;
+
+                _burn(i);
+                tickets[i].isValid = false;
+
+                emit TicketRefunded(i, ticketOwner, refundAmount);
+            }
+        }
+    }
+
     // Function for the organizer to withdraw funds
-    function withdrawFunds() public onlyOwner {
+    function withdrawFunds() public onlyOwner nonReentrant {
         require(!isCancelled, "Cannot withdraw funds if the event is cancelled.");
         uint256 amount = pendingWithdrawals[msg.sender];
         require(amount > 0, "No funds to withdraw.");
@@ -257,7 +233,20 @@ contract EventContract is ERC721, Ownable {
 
         pendingWithdrawals[msg.sender] = 0;
 
-        payable(msg.sender).transfer(withdrawalAfterFee);
+        (bool success, ) = msg.sender.call{value: withdrawalAfterFee}("");
+        require(success, "Withdrawal failed.");
+    }
+
+
+    function withdrawRefund() public nonReentrant {
+        uint256 amount = pendingWithdrawals[msg.sender];
+        require(amount > 0, "No refund to withdraw.");
+
+        // Update the pending withdrawals before transferring to prevent reentrancy
+        pendingWithdrawals[msg.sender] = 0;
+
+        (bool success, ) = msg.sender.call{value: amount}("");
+        require(success, "Refund transfer failed.");
     }
 
     // Example of an external function
