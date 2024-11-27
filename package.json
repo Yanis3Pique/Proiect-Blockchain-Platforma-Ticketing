@@ -3,21 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@openzeppelin/contracts": "^5.1.0",
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/user-event": "^14.0.0",
+    "@wagmi/core": "^1.4.13",
+    "@web3-react/core": "^6.1.9",
+    "@web3-react/injected-connector": "^6.0.7",
     "dotenv": "^16.4.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "ethers": "^5.7.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "web-vitals": "^3.0.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "vite",
+    "build": "vite build",
+    "test": "vite test"
   },
   "eslintConfig": {
     "extends": [
@@ -38,11 +40,14 @@
     ]
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.2.3",
-    "@nomiclabs/hardhat-waffle": "^2.0.6",
-    "chai": "^5.1.2",
+    "@nomiclabs/hardhat-ethers": "^2.2.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "chai": "^4.3.7",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
-    "hardhat": "^2.22.16"
+    "hardhat": "^2.20.0",
+    "typescript": "^5.2.2",
+    "vite": "^4.0.0"
   }
 }
