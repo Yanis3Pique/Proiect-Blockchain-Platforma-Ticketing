@@ -28,21 +28,27 @@ const EventManagement = () => {
                     const eventContract = new ethers.Contract(eventAddress, EventContractJSON.abi, signer);
 
                     const [
-                        ,
+                        eventIdBN,
                         eventName,
-                        ,
-                        ,
-                        ,
-                        ,
+                        eventLocation,
+                        eventDateBN,
+                        ticketPriceUSDBN,
+                        ticketsAvailableBN,
                         organizer,
+                        isCancelled // Include isCancelled here
                     ] = await eventContract.getEventDetails();
 
                     if (organizer.toLowerCase() === account.toLowerCase()) {
                         events.push({
-                            eventId,
+                            eventId: eventIdBN.toNumber(),
                             eventName,
+                            eventLocation,
+                            eventDate: eventDateBN.toNumber(),
+                            ticketPriceUSD: ticketPriceUSDBN.toNumber(),
+                            ticketsAvailable: ticketsAvailableBN.toNumber(),
+                            organizer,
                             eventAddress,
-                            // Add other details as needed
+                            isCancelled // And include it here
                         });
                     }
                 }
@@ -105,6 +111,8 @@ const EventManagement = () => {
             await tx.wait();
 
             alert('Event canceled successfully!');
+            // Update the event's isCancelled status locally
+            setOrganizedEvents(prevEvents => prevEvents.map(e => e.eventId === event.eventId ? { ...e, isCancelled: true } : e));
         } catch (error) {
             console.error('Error canceling event:', error);
             alert(`Error canceling event: ${error.message || error}`);
@@ -127,33 +135,40 @@ const EventManagement = () => {
         }
     };
 
-
-
     return (
         <div>
             <h2 className="text-2xl mb-4">My Events</h2>
             {organizedEvents.map((event, index) => (
                 <div key={index} className="border p-4 mb-4 rounded">
-                    <h3>{event.eventName}</h3>
+                    <h3 className="text-xl font-bold">{event.eventName}</h3>
+                    {event.isCancelled && (
+                        <p className="text-red-500 font-bold">This event has been canceled.</p>
+                    )}
                     {/* Add more event details as needed */}
-                    <button
-                        className="mt-2 bg-red-500 text-white p-2 rounded"
-                        onClick={() => handleInvalidateTickets(event)}
-                    >
-                        Invalidate Tickets
-                    </button>
-                    <button
-                        className="mt-2 bg-yellow-500 text-white p-2 rounded"
-                        onClick={() => handleCancelEvent(event)}
-                    >
-                        Cancel Event
-                    </button>
-                    <button
-                        className="mt-2 bg-green-500 text-white p-2 rounded"
-                        onClick={() => handleWithdrawFunds(event)}
-                    >
-                        Withdraw Funds
-                    </button>
+                    {!event.isCancelled ? (
+                        <>
+                            <button
+                                className="mt-2 bg-red-500 text-white p-2 rounded"
+                                onClick={() => handleInvalidateTickets(event)}
+                            >
+                                Invalidate Tickets
+                            </button>
+                            <button
+                                className="mt-2 bg-yellow-500 text-white p-2 rounded"
+                                onClick={() => handleCancelEvent(event)}
+                            >
+                                Cancel Event
+                            </button>
+                            <button
+                                className="mt-2 bg-green-500 text-white p-2 rounded"
+                                onClick={() => handleWithdrawFunds(event)}
+                            >
+                                Withdraw Funds
+                            </button>
+                        </>
+                    ) : (
+                        <p className="text-gray-500">Event is canceled. Funds cannot be withdrawn.</p>
+                    )}
                 </div>
             ))}
         </div>

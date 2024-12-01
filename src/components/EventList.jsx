@@ -58,7 +58,8 @@ const EventList = () => {
                     ticketPriceUSDBN,
                     ticketsAvailableBN,
                     organizer,
-                ] = await eventContract.getEventDetails();
+                    isCancelled // Add this line
+                ] = await eventContract.getEventDetails();                
 
                 fetchedEvents.push({
                     eventId: eventIdBN.toNumber(),
@@ -69,7 +70,8 @@ const EventList = () => {
                     ticketsAvailable: ticketsAvailableBN.toNumber(),
                     organizer,
                     eventAddress,
-                });
+                    isCancelled // Add this line
+                });                
             }
 
             setEvents(fetchedEvents);
