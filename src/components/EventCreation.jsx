@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { ethers } from 'ethers';
 import { useWeb3React } from '@web3-react/core';
+import TicketingPlaformJSON from "../abis/TicketingPlatform.json"
 
 const EventCreation = () => {
-    const { active, account, library } = useWeb3React();
+    const { active, library } = useWeb3React();
     const [eventDetails, setEventDetails] = useState({
         eventName: '',
         eventLocation: '',
         eventDate: '',
-        ticketPrice: '',
+        ticketPriceUSD: '',
         ticketsAvailable: '',
     });
+    const [loading, setLoading] = useState(false);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -27,30 +29,47 @@ const EventCreation = () => {
         }
 
         try {
+            setLoading(true);
             const signer = library.getSigner();
-            const platformContractAddress = 'YOUR_PLATFORM_CONTRACT_ADDRESS';
-            const platformContractABI = []; // Replace with your contract ABI
+            const ticketingPlatformAddress = "0x9F91fe777a5618846dd31Dc636ac411F505EdE42";
+            const ticketingPlatformABI = TicketingPlaformJSON.abi;
 
             const platformContract = new ethers.Contract(
-                platformContractAddress,
-                platformContractABI,
+                ticketingPlatformAddress,
+                ticketingPlatformABI,
                 signer
             );
 
-            const timestamp = Math.floor(new Date(eventDetails.eventDate).getTime() / 1000);
+            // Convert eventDate to a timestamp
+            const eventDateTimestamp = Math.floor(new Date(eventDetails.eventDate).getTime() / 1000);
+
+            // Prepare the transaction
             const tx = await platformContract.createEvent(
                 eventDetails.eventName,
                 eventDetails.eventLocation,
-                timestamp,
-                parseInt(eventDetails.ticketPrice),
-                parseInt(eventDetails.ticketsAvailable)
+                eventDateTimestamp,
+                ethers.utils.parseUnits(eventDetails.ticketPriceUSD, 0), // Assuming ticketPriceUSD is an integer
+                ethers.BigNumber.from(eventDetails.ticketsAvailable)
             );
 
-            const receipt = await tx.wait();
-            console.log('Event created:', receipt);
+            // Wait for the transaction to be mined
+            await tx.wait();
+
+            console.log('Event created:', tx);
             alert('Event created successfully!');
+            // Reset form
+            setEventDetails({
+                eventName: '',
+                eventLocation: '',
+                eventDate: '',
+                ticketPriceUSD: '',
+                ticketsAvailable: '',
+            });
         } catch (error) {
             console.error('Error creating event:', error);
+            alert(`Error creating event: ${error.message || error}`);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -66,9 +85,50 @@ const EventCreation = () => {
                         onChange={handleInputChange}
                         placeholder="Event Name"
                         className="w-full p-2 border rounded"
+                        required
                     />
-                    <button onClick={createEvent} className="w-full bg-green-500 text-white p-2 rounded">
-                        Create Event
+                    <input
+                        type="text"
+                        name="eventLocation"
+                        value={eventDetails.eventLocation}
+                        onChange={handleInputChange}
+                        placeholder="Event Location"
+                        className="w-full p-2 border rounded"
+                        required
+                    />
+                    <input
+                        type="datetime-local"
+                        name="eventDate"
+                        value={eventDetails.eventDate}
+                        onChange={handleInputChange}
+                        placeholder="Event Date"
+                        className="w-full p-2 border rounded"
+                        required
+                    />
+                    <input
+                        type="number"
+                        name="ticketPriceUSD"
+                        value={eventDetails.ticketPriceUSD}
+                        onChange={handleInputChange}
+                        placeholder="Ticket Price (USD)"
+                        className="w-full p-2 border rounded"
+                        required
+                    />
+                    <input
+                        type="number"
+                        name="ticketsAvailable"
+                        value={eventDetails.ticketsAvailable}
+                        onChange={handleInputChange}
+                        placeholder="Tickets Available"
+                        className="w-full p-2 border rounded"
+                        required
+                    />
+                    <button
+                        onClick={createEvent}
+                        className="w-full bg-green-500 text-white p-2 rounded"
+                        disabled={loading}
+                    >
+                        {loading ? 'Creating Event...' : 'Create Event'}
                     </button>
                 </div>
             ) : (

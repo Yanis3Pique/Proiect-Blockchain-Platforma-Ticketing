@@ -3,6 +3,9 @@ import { useWeb3React } from '@web3-react/core';
 import { InjectedConnector } from '@web3-react/injected-connector';
 import { ethers } from 'ethers';
 import EventList from './EventList';
+import EventCreation from './EventCreation';
+import MyTickets from './MyTickets';
+import EventManagement from './EventManagement';
 
 const injected = new InjectedConnector({ supportedChainIds: [1, 5, 11155111] });
 
@@ -74,9 +77,24 @@ const MainLayout = () => {
                         >
                             Create Event
                         </button>
+                        <button
+                            onClick={() => setActiveTab('tickets')}
+                            className={`px-4 py-2 ${activeTab === 'tickets' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                        >
+                            My Tickets
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('manage')}
+                            className={`px-4 py-2 ${activeTab === 'manage' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                        >
+                            Manage Events
+                        </button>
                     </div>
                     <div className="mt-4">
-                        {activeTab === 'events' ? <EventList /> : <EventCreation />}
+                        {activeTab === 'events' && <EventList />}
+                        {activeTab === 'create' && <EventCreation />}
+                        {activeTab === 'tickets' && <MyTickets />}
+                        {activeTab === 'manage' && <EventManagement />}
                     </div>
                 </div>
             )}
