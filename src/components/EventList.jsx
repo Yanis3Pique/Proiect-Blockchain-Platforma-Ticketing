@@ -34,7 +34,7 @@ const EventList = () => {
     const fetchEvents = async () => {
         try {
             const provider = library || new ethers.providers.Web3Provider(window.ethereum);
-            const ticketingPlatformAddress = "0x9F91fe777a5618846dd31Dc636ac411F505EdE42";
+            const ticketingPlatformAddress = "0xd0Ad10a89F50164446d95146b5CCa35aFB72fd15";
 
             const platformContract = new ethers.Contract(
                 ticketingPlatformAddress,
@@ -58,8 +58,8 @@ const EventList = () => {
                     ticketPriceUSDBN,
                     ticketsAvailableBN,
                     organizer,
-                    isCancelled // Add this line
-                ] = await eventContract.getEventDetails();                
+                    isCancelled
+                ] = await eventContract.getEventDetails();
 
                 fetchedEvents.push({
                     eventId: eventIdBN.toNumber(),
@@ -70,8 +70,8 @@ const EventList = () => {
                     ticketsAvailable: ticketsAvailableBN.toNumber(),
                     organizer,
                     eventAddress,
-                    isCancelled // Add this line
-                });                
+                    isCancelled
+                });
             }
 
             setEvents(fetchedEvents);
@@ -84,7 +84,6 @@ const EventList = () => {
 
     // Fetch events
     useEffect(() => {
-
         fetchEvents();
     }, [library]);
 
@@ -124,16 +123,16 @@ const EventList = () => {
                 return;
             }
 
-            // Conectează-te la contractul evenimentului
+            // Connect to the event contract
             const eventContract = new ethers.Contract(event.eventAddress, EventContractABI, signer);
 
-            // Obține suma totală cu taxa de serviciu de la contract
+            // Get the total price with the service fee from the contract
             const totalPriceWithFee = await eventContract.getTotalPriceWithFee(quantity);
 
-            // Apelează funcția buyTickets trimițând valoarea necesară
+            // Call the buyTickets function, sending the required value
             const tx = await eventContract.buyTickets(quantity, { value: totalPriceWithFee });
 
-            // Așteaptă ca tranzacția să fie minată
+            // Wait for the transaction to be mined
             await tx.wait();
             alert('Tickets purchased successfully!');
             await fetchEvents();
@@ -143,7 +142,6 @@ const EventList = () => {
             alert(`Error buying tickets: ${error.message || error}`);
             setBuyingTicket(false);
         }
-        setBuyingTicket(false);
     };
 
     if (loading) {
@@ -168,23 +166,31 @@ const EventList = () => {
             {activeEvents.length === 0 ? (
                 <p>No events found</p>
             ) : (
-                activeEvents.map((event, index) => (
-                    <div key={index} className="border p-4 mb-4 rounded">
-                        <h3 className="text-xl font-bold">{event.eventName}</h3>
-                        <p>Location: {event.eventLocation}</p>
-                        <p>Date: {new Date(event.eventDate * 1000).toLocaleString()}</p>
-                        <p>Ticket Price: ${event.ticketPriceUSD}</p>
-                        <p>Tickets Available: {event.ticketsAvailable}</p>
-                        <button
-                            className="mt-2 bg-blue-500 text-white p-2 rounded"
-                            onClick={() => handleBuyTickets(event)}
-                            disabled={buyingTicket}
-                        >
-                            {buyingTicket ? 'Processing...' : 'Buy Tickets'}
-                        </button>
+                activeEvents.map((event, index) => {
+                    const eventDate = new Date(event.eventDate * 1000); // Convert Unix timestamp to Date object
+                    const isEventInPast = eventDate < new Date(); // Check if event date is in the past
 
-                    </div>
-                ))
+                    return (
+                        <div key={index} className="border p-4 mb-4 rounded">
+                            <h3 className="text-xl font-bold">{event.eventName}</h3>
+                            <p>Location: {event.eventLocation}</p>
+                            <p>Date: {eventDate.toLocaleString()}</p>
+                            <p>Ticket Price: ${event.ticketPriceUSD}</p>
+                            <p>Tickets Available: {event.ticketsAvailable}</p>
+                            {!isEventInPast ? (
+                                <button
+                                    className="mt-2 bg-blue-500 text-white p-2 rounded"
+                                    onClick={() => handleBuyTickets(event)}
+                                    disabled={buyingTicket}
+                                >
+                                    {buyingTicket ? 'Processing...' : 'Buy Tickets'}
+                                </button>
+                            ) : (
+                                <p className="text-gray-500">This event has already occurred.</p>
+                            )}
+                        </div>
+                    );
+                })
             )}
         </div>
     );

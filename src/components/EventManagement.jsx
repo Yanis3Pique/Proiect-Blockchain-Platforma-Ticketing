@@ -12,21 +12,21 @@ const EventManagement = () => {
     useEffect(() => {
         const fetchOrganizedEvents = async () => {
             if (!account || !library) return;
-
+    
             try {
                 const provider = library || new ethers.providers.Web3Provider(window.ethereum);
                 const signer = provider.getSigner();
-
-                const ticketingPlatformAddress = "0x9F91fe777a5618846dd31Dc636ac411F505EdE42";
+    
+                const ticketingPlatformAddress = "0xd0Ad10a89F50164446d95146b5CCa35aFB72fd15";
                 const platformContract = new ethers.Contract(ticketingPlatformAddress, TicketingPlatform.abi, provider);
-
+    
                 const nextEventId = await platformContract.nextEventId();
-
+    
                 const events = [];
                 for (let eventId = 0; eventId < nextEventId; eventId++) {
                     const eventAddress = await platformContract.getEventAddress(eventId);
                     const eventContract = new ethers.Contract(eventAddress, EventContractJSON.abi, signer);
-
+    
                     const [
                         eventIdBN,
                         eventName,
@@ -35,9 +35,12 @@ const EventManagement = () => {
                         ticketPriceUSDBN,
                         ticketsAvailableBN,
                         organizer,
-                        isCancelled // Include isCancelled here
+                        isCancelled,
+                        fundsWithdrawn
                     ] = await eventContract.getEventDetails();
 
+                    console.log("FundsWithdrawn:", fundsWithdrawn);
+    
                     if (organizer.toLowerCase() === account.toLowerCase()) {
                         events.push({
                             eventId: eventIdBN.toNumber(),
@@ -48,11 +51,12 @@ const EventManagement = () => {
                             ticketsAvailable: ticketsAvailableBN.toNumber(),
                             organizer,
                             eventAddress,
-                            isCancelled // And include it here
+                            isCancelled,
+                            fundsWithdrawn
                         });
                     }
                 }
-
+    
                 setOrganizedEvents(events);
                 setLoading(false);
             } catch (error) {
@@ -60,9 +64,9 @@ const EventManagement = () => {
                 setLoading(false);
             }
         };
-
+    
         fetchOrganizedEvents();
-    }, [account, library]);
+    }, [account, library]);    
 
     if (loading) {
         return <div>Loading your events...</div>;
@@ -129,6 +133,12 @@ const EventManagement = () => {
             await tx.wait();
 
             alert('Funds withdrawn successfully!');
+            // Update the event's fundsWithdrawn status locally
+            setOrganizedEvents(prevEvents =>
+                prevEvents.map(e =>
+                    e.eventId === event.eventId ? { ...e, fundsWithdrawn: true } : e
+                )
+            );
         } catch (error) {
             console.error('Error withdrawing funds:', error);
             alert(`Error withdrawing funds: ${error.message || error}`);
@@ -141,38 +151,39 @@ const EventManagement = () => {
             {organizedEvents.map((event, index) => (
                 <div key={index} className="border p-4 mb-4 rounded">
                     <h3 className="text-xl font-bold">{event.eventName}</h3>
-                    {event.isCancelled && (
-                        <p className="text-red-500 font-bold">This event has been canceled.</p>
-                    )}
                     {/* Add more event details as needed */}
                     {!event.isCancelled ? (
-                        <>
-                            <button
-                                className="mt-2 bg-red-500 text-white p-2 rounded"
-                                onClick={() => handleInvalidateTickets(event)}
-                            >
-                                Invalidate Tickets
-                            </button>
-                            <button
-                                className="mt-2 bg-yellow-500 text-white p-2 rounded"
-                                onClick={() => handleCancelEvent(event)}
-                            >
-                                Cancel Event
-                            </button>
-                            <button
-                                className="mt-2 bg-green-500 text-white p-2 rounded"
-                                onClick={() => handleWithdrawFunds(event)}
-                            >
-                                Withdraw Funds
-                            </button>
-                        </>
+                        !event.fundsWithdrawn ? (
+                            <>
+                                <button
+                                    className="mt-2 bg-red-500 text-white p-2 rounded"
+                                    onClick={() => handleInvalidateTickets(event)}
+                                >
+                                    Invalidate Tickets
+                                </button>
+                                <button
+                                    className="mt-2 bg-yellow-500 text-white p-2 rounded"
+                                    onClick={() => handleCancelEvent(event)}
+                                >
+                                    Cancel Event
+                                </button>
+                                <button
+                                    className="mt-2 bg-green-500 text-white p-2 rounded"
+                                    onClick={() => handleWithdrawFunds(event)}
+                                >
+                                    Withdraw Funds
+                                </button>
+                            </>
+                        ) : (
+                            <p className="text-gray-500">The money has been withdrawn.</p>
+                        )
                     ) : (
                         <p className="text-gray-500">Event is canceled. Funds cannot be withdrawn.</p>
                     )}
                 </div>
             ))}
         </div>
-    );
+    );    
 };
 
 export default EventManagement;

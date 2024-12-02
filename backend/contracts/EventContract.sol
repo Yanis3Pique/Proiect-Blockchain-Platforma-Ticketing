@@ -24,6 +24,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
     uint256 public nextTicketId;
     bool public isCancelled;
     address payable public platform;
+    bool public fundsWithdrawn;
 
     mapping(uint256 => Ticket) public tickets;
 
@@ -222,6 +223,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
 
     function cancelEvent() public onlyOwner nonReentrant {
         require(!isCancelled, "Event is already cancelled.");
+        require(!fundsWithdrawn, "Funds have already been withdrawn.");
         isCancelled = true;
 
         refundAllTickets();
@@ -264,8 +266,11 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
 
         uint256 amount = address(this).balance;
         require(amount > 0, "No funds to withdraw.");
-
         (bool success, ) = msg.sender.call{value: amount}("");
+        if (success) {
+            console.log("Funds withdrawn: %s", amount);
+            fundsWithdrawn = true;
+        }
         require(success, "Withdrawal failed.");
     }
 
@@ -280,6 +285,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
             uint256,
             uint256,
             address,
+            bool,
             bool
         )
     {
@@ -291,7 +297,8 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
             ticketPriceUSD,
             ticketsAvailable,
             owner(),
-            isCancelled
+            isCancelled,
+            fundsWithdrawn
         );
     }
 

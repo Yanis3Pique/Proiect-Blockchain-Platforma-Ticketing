@@ -31,7 +31,7 @@ const EventCreation = () => {
         try {
             setLoading(true);
             const signer = library.getSigner();
-            const ticketingPlatformAddress = "0x9F91fe777a5618846dd31Dc636ac411F505EdE42";
+            const ticketingPlatformAddress = "0xd0Ad10a89F50164446d95146b5CCa35aFB72fd15";
             const ticketingPlatformABI = TicketingPlaformJSON.abi;
 
             const platformContract = new ethers.Contract(
