@@ -34,7 +34,7 @@ const EventList = () => {
     const fetchEvents = async () => {
         try {
             const provider = library || new ethers.providers.Web3Provider(window.ethereum);
-            const ticketingPlatformAddress = "0xd0Ad10a89F50164446d95146b5CCa35aFB72fd15";
+            const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
 
             const platformContract = new ethers.Contract(
                 ticketingPlatformAddress,
@@ -65,7 +65,7 @@ const EventList = () => {
                     eventId: eventIdBN.toNumber(),
                     eventName,
                     eventLocation,
-                    eventDate: eventDateBN.toNumber(),
+                    eventDate: eventDateBN.toNumber() * 1000, // Convert to milliseconds
                     ticketPriceUSD: ticketPriceUSDBN.toNumber(),
                     ticketsAvailable: ticketsAvailableBN.toNumber(),
                     organizer,
@@ -82,9 +82,57 @@ const EventList = () => {
         }
     };
 
-    // Fetch events
+    // Fetch events and set up event listeners
     useEffect(() => {
         fetchEvents();
+
+        const setupEventListeners = async () => {
+            if (!library) return;
+            const provider = library || new ethers.providers.Web3Provider(window.ethereum);
+            const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
+            const platformContract = new ethers.Contract(
+                ticketingPlatformAddress,
+                TicketingPlatformABI,
+                provider
+            );
+
+            const nextEventId = await platformContract.nextEventId();
+
+            for (let eventId = 0; eventId < nextEventId; eventId++) {
+                const eventAddress = await platformContract.getEventAddress(eventId);
+                const eventContract = new ethers.Contract(eventAddress, EventContractABI, provider);
+
+                // Listen for TicketPurchased events
+                const handleTicketPurchased = async (ticketId, buyer) => {
+                    console.log(`Ticket ${ticketId} purchased by ${buyer}`);
+                    // Refresh events
+                    await fetchEvents();
+                };
+
+                // Listen for EventCancelled events
+                const handleEventCancelled = async () => {
+                    console.log(`Event at ${eventAddress} has been cancelled.`);
+                    // Refresh events
+                    await fetchEvents();
+                };
+
+                eventContract.on("TicketPurchased", handleTicketPurchased);
+                eventContract.on("EventCancelled", handleEventCancelled);
+
+                // Clean up listeners when component unmounts
+                return () => {
+                    eventContract.off("TicketPurchased", handleTicketPurchased);
+                    eventContract.off("EventCancelled", handleEventCancelled);
+                };
+            }
+        };
+
+        setupEventListeners();
+
+        // Clean up function
+        return () => {
+            // No need to clean up here because we return cleanup functions inside setupEventListeners
+        };
     }, [library]);
 
     // Function to handle ticket purchase
@@ -129,17 +177,36 @@ const EventList = () => {
             // Get the total price with the service fee from the contract
             const totalPriceWithFee = await eventContract.getTotalPriceWithFee(quantity);
 
-            // Call the buyTickets function, sending the required value
-            const tx = await eventContract.buyTickets(quantity, { value: totalPriceWithFee });
+            // Estimate gas
+            const gasEstimate = await eventContract.estimateGas.buyTickets(quantity, { value: totalPriceWithFee });
+
+            // Inform user
+            alert('Transaction is being processed. Please wait...');
+
+            // Call the buyTickets function, sending the required value and gas limit
+            const tx = await eventContract.buyTickets(quantity, {
+                value: totalPriceWithFee,
+                gasLimit: gasEstimate.mul(110).div(100), // Add 10% buffer
+            });
 
             // Wait for the transaction to be mined
             await tx.wait();
             alert('Tickets purchased successfully!');
             await fetchEvents();
-            setBuyingTicket(false);
         } catch (error) {
             console.error('Error buying tickets:', error);
-            alert(`Error buying tickets: ${error.message || error}`);
+
+            if (error.code === 'INSUFFICIENT_FUNDS') {
+                alert('You have insufficient funds to complete this purchase.');
+            } else if (error.code === 'USER_REJECTED_TRANSACTION') {
+                alert('Transaction rejected by the user.');
+            } else if (error.data && error.data.message) {
+                const reason = error.data.message;
+                alert(`Transaction failed: ${reason}`);
+            } else {
+                alert(`Error buying tickets: ${error.message || error}`);
+            }
+        } finally {
             setBuyingTicket(false);
         }
     };
@@ -167,7 +234,7 @@ const EventList = () => {
                 <p>No events found</p>
             ) : (
                 activeEvents.map((event, index) => {
-                    const eventDate = new Date(event.eventDate * 1000); // Convert Unix timestamp to Date object
+                    const eventDate = new Date(event.eventDate); // eventDate is already in milliseconds
                     const isEventInPast = eventDate < new Date(); // Check if event date is in the past
 
                     return (

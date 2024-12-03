@@ -12,21 +12,21 @@ const EventManagement = () => {
     useEffect(() => {
         const fetchOrganizedEvents = async () => {
             if (!account || !library) return;
-    
+
             try {
                 const provider = library || new ethers.providers.Web3Provider(window.ethereum);
                 const signer = provider.getSigner();
-    
-                const ticketingPlatformAddress = "0xd0Ad10a89F50164446d95146b5CCa35aFB72fd15";
+
+                const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
                 const platformContract = new ethers.Contract(ticketingPlatformAddress, TicketingPlatform.abi, provider);
-    
+
                 const nextEventId = await platformContract.nextEventId();
-    
+
                 const events = [];
                 for (let eventId = 0; eventId < nextEventId; eventId++) {
                     const eventAddress = await platformContract.getEventAddress(eventId);
                     const eventContract = new ethers.Contract(eventAddress, EventContractJSON.abi, signer);
-    
+
                     const [
                         eventIdBN,
                         eventName,
@@ -40,7 +40,7 @@ const EventManagement = () => {
                     ] = await eventContract.getEventDetails();
 
                     console.log("FundsWithdrawn:", fundsWithdrawn);
-    
+
                     if (organizer.toLowerCase() === account.toLowerCase()) {
                         events.push({
                             eventId: eventIdBN.toNumber(),
@@ -56,17 +56,51 @@ const EventManagement = () => {
                         });
                     }
                 }
-    
+
                 setOrganizedEvents(events);
                 setLoading(false);
+
+                // Set up event listeners
+                events.forEach(event => {
+                    const eventContract = new ethers.Contract(event.eventAddress, EventContractJSON.abi, provider);
+
+                    // Listener for EventCancelled
+                    const handleEventCancelled = async () => {
+                        console.log(`Event ${event.eventId} has been cancelled.`);
+                        await fetchOrganizedEvents();
+                    };
+
+                    // Listener for FundsWithdrawn
+                    const handleFundsWithdrawn = async () => {
+                        console.log(`Funds for event ${event.eventId} have been withdrawn.`);
+                        await fetchOrganizedEvents();
+                    };
+
+                    // Listener for TicketInvalidated
+                    const handleTicketInvalidated = async (ticketId) => {
+                        console.log(`Ticket ${ticketId} invalidated for event ${event.eventId}.`);
+                        // Optionally update state if needed
+                    };
+
+                    eventContract.on("EventCancelled", handleEventCancelled);
+                    eventContract.on("FundsWithdrawn", handleFundsWithdrawn);
+                    eventContract.on("TicketInvalidated", handleTicketInvalidated);
+
+                    // Clean up listeners when component unmounts
+                    return () => {
+                        eventContract.off("EventCancelled", handleEventCancelled);
+                        eventContract.off("FundsWithdrawn", handleFundsWithdrawn);
+                        eventContract.off("TicketInvalidated", handleTicketInvalidated);
+                    };
+                });
             } catch (error) {
                 console.error('Error fetching organized events:', error);
                 setLoading(false);
             }
         };
-    
+
         fetchOrganizedEvents();
-    }, [account, library]);    
+    }, [account, library]);
 
     if (loading) {
         return <div>Loading your events...</div>;
@@ -92,13 +126,25 @@ const EventManagement = () => {
             const signer = provider.getSigner();
             const eventContract = new ethers.Contract(event.eventAddress, EventContractJSON.abi, signer);
 
-            const tx = await eventContract.invalidateTickets(ticketIds);
+            // Estimate gas
+            const gasEstimate = await eventContract.estimateGas.invalidateTickets(ticketIds);
+
+            const tx = await eventContract.invalidateTickets(ticketIds, {
+                gasLimit: gasEstimate.mul(110).div(100), // Add 10% buffer
+            });
             await tx.wait();
 
             alert('Tickets invalidated successfully!');
         } catch (error) {
             console.error('Error invalidating tickets:', error);
-            alert(`Error invalidating tickets: ${error.message || error}`);
+            if (error.code === 'USER_REJECTED_TRANSACTION') {
+                alert('Transaction rejected by the user.');
+            } else if (error.data && error.data.message) {
+                const reason = error.data.message;
+                alert(`Transaction failed: ${reason}`);
+            } else {
+                alert(`Error invalidating tickets: ${error.message || error}`);
+            }
         }
     };
 
@@ -111,7 +157,12 @@ const EventManagement = () => {
             const signer = provider.getSigner();
             const eventContract = new ethers.Contract(event.eventAddress, EventContractJSON.abi, signer);
 
-            const tx = await eventContract.cancelEvent();
+            // Estimate gas
+            const gasEstimate = await eventContract.estimateGas.cancelEvent();
+
+            const tx = await eventContract.cancelEvent({
+                gasLimit: gasEstimate.mul(110).div(100), // Add 10% buffer
+            });
             await tx.wait();
 
             alert('Event canceled successfully!');
@@ -119,7 +170,14 @@ const EventManagement = () => {
             setOrganizedEvents(prevEvents => prevEvents.map(e => e.eventId === event.eventId ? { ...e, isCancelled: true } : e));
         } catch (error) {
             console.error('Error canceling event:', error);
-            alert(`Error canceling event: ${error.message || error}`);
+            if (error.code === 'USER_REJECTED_TRANSACTION') {
+                alert('Transaction rejected by the user.');
+            } else if (error.data && error.data.message) {
+                const reason = error.data.message;
+                alert(`Transaction failed: ${reason}`);
+            } else {
+                alert(`Error canceling event: ${error.message || error}`);
+            }
         }
     };
 
@@ -129,7 +187,12 @@ const EventManagement = () => {
             const signer = provider.getSigner();
             const eventContract = new ethers.Contract(event.eventAddress, EventContractJSON.abi, signer);
 
-            const tx = await eventContract.withdrawFunds();
+            // Estimate gas
+            const gasEstimate = await eventContract.estimateGas.withdrawFunds();
+
+            const tx = await eventContract.withdrawFunds({
+                gasLimit: gasEstimate.mul(110).div(100), // Add 10% buffer
+            });
             await tx.wait();
 
             alert('Funds withdrawn successfully!');
@@ -141,10 +204,17 @@ const EventManagement = () => {
             );
         } catch (error) {
             console.error('Error withdrawing funds:', error);
-            alert(`Error withdrawing funds: ${error.message || error}`);
+            if (error.code === 'USER_REJECTED_TRANSACTION') {
+                alert('Transaction rejected by the user.');
+            } else if (error.data && error.data.message) {
+                const reason = error.data.message;
+                alert(`Transaction failed: ${reason}`);
+            } else {
+                alert(`Error withdrawing funds: ${error.message || error}`);
+            }
         }
-    };    
-    
+    };
+
     return (
         <div>
             <h2 className="text-2xl mb-4">My Events</h2>
@@ -195,7 +265,7 @@ const EventManagement = () => {
                 );
             })}
         </div>
-    );    
+    );
 };
 
 export default EventManagement;

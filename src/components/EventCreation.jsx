@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useWeb3React } from '@web3-react/core';
-import TicketingPlaformJSON from "../abis/TicketingPlatform.json"
+import TicketingPlatformJSON from "../abis/TicketingPlatform.json";
 
 const EventCreation = () => {
     const { active, library } = useWeb3React();
@@ -13,6 +13,32 @@ const EventCreation = () => {
         ticketsAvailable: '',
     });
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!active || !library) return;
+
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const ticketingPlatformAddress = "0xC4fA925669A73c0c405d9AA6Bddb03e944091090";
+        const platformContract = new ethers.Contract(
+            ticketingPlatformAddress,
+            TicketingPlatformJSON.abi,
+            provider
+        );
+
+        const handleEventCreated = (eventId, eventAddress, organizer) => {
+            console.log("Event Created:", { eventId, eventAddress, organizer });
+            alert(`Event Created! Event ID: ${eventId.toString()}`);
+            // Optionally refresh events or update UI here
+        };
+
+        // Listen to the EventCreated event
+        platformContract.on("EventCreated", handleEventCreated);
+
+        // Clean up the listener when the component unmounts
+        return () => {
+            platformContract.off("EventCreated", handleEventCreated);
+        };
+    }, [active, library]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -31,8 +57,8 @@ const EventCreation = () => {
         try {
             setLoading(true);
             const signer = library.getSigner();
-            const ticketingPlatformAddress = "0xd0Ad10a89F50164446d95146b5CCa35aFB72fd15";
-            const ticketingPlatformABI = TicketingPlaformJSON.abi;
+            const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
+            const ticketingPlatformABI = TicketingPlatformJSON.abi;
 
             const platformContract = new ethers.Contract(
                 ticketingPlatformAddress,
@@ -43,13 +69,27 @@ const EventCreation = () => {
             // Convert eventDate to a timestamp
             const eventDateTimestamp = Math.floor(new Date(eventDetails.eventDate).getTime() / 1000);
 
-            // Prepare the transaction
+            // Estimate gas
+            const gasEstimate = await platformContract.estimateGas.createEvent(
+                eventDetails.eventName,
+                eventDetails.eventLocation,
+                eventDateTimestamp,
+                ethers.utils.parseUnits(eventDetails.ticketPriceUSD, 0),
+                ethers.BigNumber.from(eventDetails.ticketsAvailable)
+            );
+
+            console.log(`Estimated gas: ${gasEstimate.toString()}`);
+
+            // Prepare the transaction with gas limit
             const tx = await platformContract.createEvent(
                 eventDetails.eventName,
                 eventDetails.eventLocation,
                 eventDateTimestamp,
-                ethers.utils.parseUnits(eventDetails.ticketPriceUSD, 0), // Assuming ticketPriceUSD is an integer
-                ethers.BigNumber.from(eventDetails.ticketsAvailable)
+                ethers.utils.parseUnits(eventDetails.ticketPriceUSD, 0),
+                ethers.BigNumber.from(eventDetails.ticketsAvailable),
+                {
+                    gasLimit: gasEstimate.mul(110).div(100), // Add 10% buffer
+                }
             );
 
             // Wait for the transaction to be mined
@@ -67,7 +107,18 @@ const EventCreation = () => {
             });
         } catch (error) {
             console.error('Error creating event:', error);
-            alert(`Error creating event: ${error.message || error}`);
+
+            // Improved error handling
+            if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+                alert('Gas estimation failed. Please try again.');
+            } else if (error.code === 'USER_REJECTED_TRANSACTION') {
+                alert('Transaction rejected by the user.');
+            } else if (error.data && error.data.message) {
+                const reason = error.data.message;
+                alert(`Transaction failed: ${reason}`);
+            } else {
+                alert(`Error creating event: ${error.message || error}`);
+            }
         } finally {
             setLoading(false);
         }

@@ -88,6 +88,29 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         transferOwnership(_organizer);
     }
 
+    function getTicketsOfOwner(address _owner) external view returns (uint256[] memory) {
+        uint256 totalTickets = nextTicketId - 1;
+        uint256[] memory tempTickets = new uint256[](totalTickets);
+        uint256 counter = 0;
+
+        for (uint256 ticketId = 1; ticketId <= totalTickets; ticketId++) {
+            if (tickets[ticketId].isValid && tickets[ticketId].owner == _owner) {
+                tempTickets[counter] = ticketId;
+                counter++;
+            }
+        }
+
+        // Create a result array of the correct size
+        uint256[] memory result = new uint256[](counter);
+        for (uint256 i = 0; i < counter; i++) {
+            result[i] = tempTickets[i];
+        }
+
+        return result;
+    }
+
+
+
     function getLatestPrice() internal view returns (uint256) {
         (, int256 price, , , ) = priceFeed.latestRoundData();
         require(price > 0, "Invalid ETH price.");
@@ -250,6 +273,9 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
                         pendingWithdrawals[ticketOwner] += refundAmount;
                     }
                 }
+            }
+            if (!tickets[i].isValid) {
+                _burn(i);
             }
         }
     }
