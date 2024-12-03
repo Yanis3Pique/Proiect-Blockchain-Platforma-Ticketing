@@ -36,6 +36,18 @@ const MyTickets = () => {
             for (const eventAddress of eventAddresses) {
                 const eventContract = new ethers.Contract(eventAddress, EventContractJSON.abi, provider);
 
+                // Get event details once per event
+                const [
+                    ,
+                    eventName,
+                    eventLocation,
+                    eventDateBN,
+                    ticketPriceUSDBN,
+                    ,
+                ] = await eventContract.getEventDetails();
+
+                const eventDateTimestamp = eventDateBN.toNumber() * 1000; // Convert to milliseconds
+
                 // Get the total number of tickets minted
                 const nextTicketIdBN = await eventContract.nextTicketId();
                 const nextTicketId = nextTicketIdBN.toNumber();
@@ -45,21 +57,15 @@ const MyTickets = () => {
                     try {
                         const owner = await eventContract.ownerOf(ticketId);
                         if (owner.toLowerCase() === account.toLowerCase()) {
-                            const [
-                                ,
-                                eventName,
-                                eventLocation,
-                                eventDateBN,
-                                ticketPriceUSDBN,
-                                ,
-                            ] = await eventContract.getEventDetails();
 
                             const ticket = {
                                 ticketId: ticketId,
                                 eventAddress: eventAddress,
                                 eventName,
                                 eventLocation,
-                                eventDate: new Date(eventDateBN.toNumber() * 1000).toLocaleString(),
+                                eventDate: new Date(eventDateTimestamp), // Store as Date object
+                                eventDateTimestamp: eventDateTimestamp,
+                                eventDateString: new Date(eventDateTimestamp).toLocaleString(), // For display
                                 ticketPriceUSD: ticketPriceUSDBN.toNumber(),
                             };
 
@@ -95,7 +101,6 @@ const MyTickets = () => {
         }
 
         try {
-
             setTransferringTickets((prevState) => ({
                 ...prevState,
                 [ticket.ticketId]: true,
@@ -133,22 +138,27 @@ const MyTickets = () => {
     return (
         <div>
             <h2 className="text-2xl mb-4">My Tickets</h2>
-            {tickets.map((ticket, index) => (
-                <div key={index} className="border p-4 mb-4 rounded">
-                    <h3>{ticket.eventName}</h3>
-                    <p>Ticket ID: {ticket.ticketId}</p>
-                    <p>Event Date: {ticket.eventDate}</p>
-                    <p>Location: {ticket.eventLocation}</p>
-                    <button
-                        className="mt-2 bg-blue-500 text-white p-2 rounded disabled:opacity-50"
-                        onClick={() => handleTransferTicket(ticket)}
-                        disabled={transferringTickets[ticket.ticketId]}
-                    >
-                        {transferringTickets[ticket.ticketId] ? 'Transferring...' : 'Transfer Ticket'}
-                    </button>
+            {tickets.map((ticket, index) => {
+                const isEventDatePassed = ticket.eventDateTimestamp < Date.now();
 
-                </div>
-            ))}
+                return (
+                    <div key={index} className="border p-4 mb-4 rounded">
+                        <h3>{ticket.eventName}</h3>
+                        <p>Ticket ID: {ticket.ticketId}</p>
+                        <p>Event Date: {ticket.eventDateString}</p>
+                        <p>Location: {ticket.eventLocation}</p>
+                        {!isEventDatePassed && (
+                            <button
+                                className="mt-2 bg-blue-500 text-white p-2 rounded disabled:opacity-50"
+                                onClick={() => handleTransferTicket(ticket)}
+                                disabled={transferringTickets[ticket.ticketId]}
+                            >
+                                {transferringTickets[ticket.ticketId] ? 'Transferring...' : 'Transfer Ticket'}
+                            </button>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 };

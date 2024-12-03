@@ -46,7 +46,7 @@ const EventManagement = () => {
                             eventId: eventIdBN.toNumber(),
                             eventName,
                             eventLocation,
-                            eventDate: eventDateBN.toNumber(),
+                            eventDate: eventDateBN.toNumber() * 1000, // Convert to milliseconds
                             ticketPriceUSD: ticketPriceUSDBN.toNumber(),
                             ticketsAvailable: ticketsAvailableBN.toNumber(),
                             organizer,
@@ -143,45 +143,57 @@ const EventManagement = () => {
             console.error('Error withdrawing funds:', error);
             alert(`Error withdrawing funds: ${error.message || error}`);
         }
-    };
-
+    };    
+    
     return (
         <div>
             <h2 className="text-2xl mb-4">My Events</h2>
-            {organizedEvents.map((event, index) => (
-                <div key={index} className="border p-4 mb-4 rounded">
-                    <h3 className="text-xl font-bold">{event.eventName}</h3>
-                    {/* Add more event details as needed */}
-                    {!event.isCancelled ? (
-                        !event.fundsWithdrawn ? (
-                            <>
-                                <button
-                                    className="mt-2 bg-red-500 text-white p-2 rounded"
-                                    onClick={() => handleInvalidateTickets(event)}
-                                >
-                                    Invalidate Tickets
-                                </button>
-                                <button
-                                    className="mt-2 bg-yellow-500 text-white p-2 rounded"
-                                    onClick={() => handleCancelEvent(event)}
-                                >
-                                    Cancel Event
-                                </button>
-                                <button
-                                    className="mt-2 bg-green-500 text-white p-2 rounded"
-                                    onClick={() => handleWithdrawFunds(event)}
-                                >
-                                    Withdraw Funds
-                                </button>
-                            </>
+            {organizedEvents.map((event, index) => {
+                // Calculate if the current time is at least 30 minutes after the event date
+                const currentTime = Date.now();
+                const thirtyMinutesInMs = 30 * 60 * 1000; // 30 minutes in milliseconds
+                const eventTimePlus30Min = event.eventDate + thirtyMinutesInMs;
+
+                const isAfter30MinutesFromEvent = currentTime <= eventTimePlus30Min;
+
+                return (
+                    <div key={index} className="border p-4 mb-4 rounded">
+                        <h3 className="text-xl font-bold">{event.eventName}</h3>
+                        {/* Add more event details as needed */}
+                        {!event.isCancelled ? (
+                            !event.fundsWithdrawn ? (
+                                <>
+                                    {/* Only show Invalidate Tickets button if currentTime >= eventTime + 30 minutes */}
+                                    {isAfter30MinutesFromEvent && (
+                                        <button
+                                            className="mt-2 bg-red-500 text-white p-2 rounded"
+                                            onClick={() => handleInvalidateTickets(event)}
+                                        >
+                                            Invalidate Tickets
+                                        </button>
+                                    )}
+                                    <button
+                                        className="mt-2 bg-yellow-500 text-white p-2 rounded"
+                                        onClick={() => handleCancelEvent(event)}
+                                    >
+                                        Cancel Event
+                                    </button>
+                                    <button
+                                        className="mt-2 bg-green-500 text-white p-2 rounded"
+                                        onClick={() => handleWithdrawFunds(event)}
+                                    >
+                                        Withdraw Funds
+                                    </button>
+                                </>
+                            ) : (
+                                <p className="text-gray-500">The money has been withdrawn.</p>
+                            )
                         ) : (
-                            <p className="text-gray-500">The money has been withdrawn.</p>
-                        )
-                    ) : (
-                        <p className="text-gray-500">Event is canceled. Funds cannot be withdrawn.</p>
-                    )}
-                </div>
-            ))}
+                            <p className="text-gray-500">Event is canceled. Funds cannot be withdrawn.</p>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );    
 };
