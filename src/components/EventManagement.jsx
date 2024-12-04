@@ -37,8 +37,6 @@ const EventManagement = () => {
                         fundsWithdrawn
                     ] = await eventContract.getEventDetails();
 
-                    console.log("FundsWithdrawn:", fundsWithdrawn);
-
                     // Adaugam evenimentul in lista doar daca utilizatorul este organizator
                     if (organizer.toLowerCase() === account.toLowerCase()) {
                         events.push({
