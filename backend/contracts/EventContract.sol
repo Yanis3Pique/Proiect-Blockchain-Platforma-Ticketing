@@ -81,6 +81,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         organizer = _organizer;
         nextTicketId = 1;
         isCancelled = false;
+        fundsWithdrawn = false;
         platform = _platform;
 
         priceFeed = AggregatorV3Interface(_priceFeedAddress);
