@@ -4,7 +4,7 @@ import { useWeb3React } from '@web3-react/core';
 import TicketingPlatformJSON from "../abis/TicketingPlatform.json";
 
 const EventCreation = () => {
-    const { active, library } = useWeb3React();
+    const { active, library } = useWeb3React(); // Hook pentru conectarea la Web3
     const [eventDetails, setEventDetails] = useState({
         eventName: '',
         eventLocation: '',
@@ -28,18 +28,17 @@ const EventCreation = () => {
         const handleEventCreated = (eventId, eventAddress, organizer) => {
             console.log("Event Created:", { eventId, eventAddress, organizer });
             alert(`Event Created! Event ID: ${eventId.toString()}`);
-            // Optionally refresh events or update UI here
         };
 
-        // Listen to the EventCreated event
         platformContract.on("EventCreated", handleEventCreated);
 
-        // Clean up the listener when the component unmounts
+        // Cleanup pentru a elimina listener-ul la demontarea componentei
         return () => {
             platformContract.off("EventCreated", handleEventCreated);
         };
     }, [active, library]);
 
+    // Actualizeaza campurile formularului in functie de intrarile utilizatorului
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setEventDetails((prev) => ({
@@ -66,10 +65,10 @@ const EventCreation = () => {
                 signer
             );
 
-            // Convert eventDate to a timestamp
+            // Converteste data in timestamp Unix
             const eventDateTimestamp = Math.floor(new Date(eventDetails.eventDate).getTime() / 1000);
 
-            // Estimate gas
+            // Estimeaza costul in gas pentru tranzactie
             const gasEstimate = await platformContract.estimateGas.createEvent(
                 eventDetails.eventName,
                 eventDetails.eventLocation,
@@ -80,7 +79,6 @@ const EventCreation = () => {
 
             console.log(`Estimated gas: ${gasEstimate.toString()}`);
 
-            // Prepare the transaction with gas limit
             const tx = await platformContract.createEvent(
                 eventDetails.eventName,
                 eventDetails.eventLocation,
@@ -88,16 +86,16 @@ const EventCreation = () => {
                 ethers.utils.parseUnits(eventDetails.ticketPriceUSD, 0),
                 ethers.BigNumber.from(eventDetails.ticketsAvailable),
                 {
-                    gasLimit: gasEstimate.mul(110).div(100), // Add 10% buffer
+                    gasLimit: gasEstimate.mul(110).div(100), // Adauga 10% buffer
                 }
             );
 
-            // Wait for the transaction to be mined
             await tx.wait();
 
             console.log('Event created:', tx);
             alert('Event created successfully!');
-            // Reset form
+
+            // Reseteaza formularul dupa succes
             setEventDetails({
                 eventName: '',
                 eventLocation: '',
@@ -108,7 +106,6 @@ const EventCreation = () => {
         } catch (error) {
             console.error('Error creating event:', error);
 
-            // Improved error handling
             if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
                 alert('Gas estimation failed. Please try again.');
             } else if (error.code === 'USER_REJECTED_TRANSACTION') {

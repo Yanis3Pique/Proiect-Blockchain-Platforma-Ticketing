@@ -17,7 +17,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
     uint256 public eventId;
     string public eventName;
     string public eventLocation;
-    uint256 public eventDate;
+    uint256 public eventDate; // Data in format UNIX
     uint256 public ticketPriceUSD;
     uint256 public ticketsAvailable;
     address payable public organizer;
@@ -26,12 +26,12 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
     address payable public platform;
     bool public fundsWithdrawn;
 
+    // Mapping pentru bilete, preturi si retrageri
     mapping(uint256 => Ticket) public tickets;
-
     mapping(uint256 => uint256) public ticketPricesPaid;
-
     mapping(address => uint256) public pendingWithdrawals;
 
+    // Referinta pentru Chainlink Price Feed
     AggregatorV3Interface internal priceFeed;
 
     event TicketPurchased(uint256 indexed ticketId, address indexed buyer);
@@ -88,19 +88,23 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         transferOwnership(_organizer);
     }
 
-    function getTicketsOfOwner(address _owner) external view returns (uint256[] memory) {
+    // Returneaza lista de bilete detinute de o anumita adresa
+    function getTicketsOfOwner(
+        address _owner
+    ) external view returns (uint256[] memory) {
         uint256 totalTickets = nextTicketId - 1;
         uint256[] memory tempTickets = new uint256[](totalTickets);
         uint256 counter = 0;
 
         for (uint256 ticketId = 1; ticketId <= totalTickets; ticketId++) {
-            if (tickets[ticketId].isValid && tickets[ticketId].owner == _owner) {
+            if (
+                tickets[ticketId].isValid && tickets[ticketId].owner == _owner
+            ) {
                 tempTickets[counter] = ticketId;
                 counter++;
             }
         }
 
-        // Create a result array of the correct size
         uint256[] memory result = new uint256[](counter);
         for (uint256 i = 0; i < counter; i++) {
             result[i] = tempTickets[i];
@@ -109,8 +113,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         return result;
     }
 
-
-
+    // Obtine pretul ETH/USD folosind Chainlink
     function getLatestPrice() internal view returns (uint256) {
         (, int256 price, , , ) = priceFeed.latestRoundData();
         require(price > 0, "Invalid ETH price.");

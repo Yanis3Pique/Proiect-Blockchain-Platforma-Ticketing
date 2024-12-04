@@ -7,20 +7,22 @@ import EventCreation from './EventCreation';
 import MyTickets from './MyTickets';
 import EventManagement from './EventManagement';
 
+
+// Conector pentru wallet-ul injectat (MetaMask), suporta chain-urile specificate
 const injected = new InjectedConnector({ supportedChainIds: [1, 5, 11155111] });
 
 const MainLayout = () => {
-    const { account, active, activate, deactivate, library } = useWeb3React();
+    const { account, active, activate, deactivate, library } = useWeb3React(); // Hook pentru conexiunea Web3React
     const [balance, setBalance] = useState(null);
     const [activeTab, setActiveTab] = useState('events');
 
     const connectWallet = async () => {
         try {
-            await activate(injected);
+            await activate(injected); // Activam conexiunea folosind conectorul Injected
             console.log('Wallet connected');
             if (library && account) {
                 const fetchedBalance = await library.getBalance(account);
-                setBalance(parseFloat(ethers.utils.formatEther(fetchedBalance)).toFixed(4));
+                setBalance(parseFloat(ethers.utils.formatEther(fetchedBalance)).toFixed(4)); // Convertim si formatam soldul in ETH
             }
         } catch (error) {
             console.error('Failed to connect wallet:', error);

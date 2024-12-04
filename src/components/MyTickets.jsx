@@ -5,23 +5,20 @@ import EventContractJSON from '../abis/EventContract.json';
 import TicketingPlatform from '../abis/TicketingPlatform.json';
 
 const MyTickets = () => {
-    const { account, library } = useWeb3React();
+    const { account, library } = useWeb3React(); // Hook pentru gestionarea conexiunii Web3
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [transferringTickets, setTransferringTickets] = useState({});
 
-    // Function to fetch tickets owned by the user
     const fetchTickets = async () => {
-        if (!account || !library) return;
-    
+        if (!account || !library) return; // Daca nu exista cont sau biblioteca Web3, iesim
+
         try {
             const provider = library || new ethers.providers.Web3Provider(window.ethereum);
-
-            // Fetch all event addresses from the TicketingPlatform contract
             const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
             const platformContract = new ethers.Contract(ticketingPlatformAddress, TicketingPlatform.abi, provider);
 
-            const nextEventIdBN = await platformContract.nextEventId();
+            const nextEventIdBN = await platformContract.nextEventId(); // Numarul total de evenimente
             const nextEventId = nextEventIdBN.toNumber();
 
             const eventAddresses = [];
@@ -37,13 +34,12 @@ const MyTickets = () => {
                 console.log(`Processing event at address: ${eventAddress}`);
                 const eventContract = new ethers.Contract(eventAddress, EventContractJSON.abi, provider);
 
-                // Get event details once per event
                 let eventDetails;
                 try {
                     eventDetails = await eventContract.getEventDetails();
                 } catch (error) {
                     console.error(`Error fetching event details for event at ${eventAddress}:`, error);
-                    continue; // Skip to the next event
+                    continue;
                 }
 
                 const [
@@ -55,15 +51,15 @@ const MyTickets = () => {
                     ,
                 ] = eventDetails;
 
-                const eventDateTimestamp = eventDateBN.toNumber() * 1000; // Convert to milliseconds
+                const eventDateTimestamp = eventDateBN.toNumber() * 1000; // Conversie la milisecunde
 
-                // Use getTicketsOfOwner to get valid ticket IDs owned by the user
+
                 let ticketIdsBN;
                 try {
                     ticketIdsBN = await eventContract.getTicketsOfOwner(account);
                 } catch (error) {
                     console.error(`Error fetching tickets for owner at event ${eventAddress}:`, error);
-                    continue; // Skip to the next event
+                    continue;
                 }
 
                 const ticketIds = ticketIdsBN.map(id => id.toNumber());
@@ -74,9 +70,9 @@ const MyTickets = () => {
                         eventAddress: eventAddress,
                         eventName,
                         eventLocation,
-                        eventDate: new Date(eventDateTimestamp), // Store as Date object
+                        eventDate: new Date(eventDateTimestamp),
                         eventDateTimestamp: eventDateTimestamp,
-                        eventDateString: new Date(eventDateTimestamp).toLocaleString(), // For display
+                        eventDateString: new Date(eventDateTimestamp).toLocaleString(),
                         ticketPriceUSD: ticketPriceUSDBN.toNumber(),
                     };
 
@@ -90,17 +86,15 @@ const MyTickets = () => {
             console.error('Error fetching tickets:', error);
             setLoading(false);
         }
-    };       
+    };
 
-    // Fetch tickets on component mount
     useEffect(() => {
         fetchTickets();
     }, [account, library]);
 
-    // Function to handle ticket transfer
     const handleTransferTicket = async (ticket) => {
         const recipientAddress = prompt('Enter the recipient\'s address:');
-        if (!recipientAddress) return; // User cancelled the prompt
+        if (!recipientAddress) return;
 
         if (!ethers.utils.isAddress(recipientAddress)) {
             alert('Invalid address.');
@@ -116,18 +110,16 @@ const MyTickets = () => {
             const signer = provider.getSigner();
             const eventContract = new ethers.Contract(ticket.eventAddress, EventContractJSON.abi, signer);
 
-            // Estimate gas
+            // Estimam gazul necesar
             const gasEstimate = await eventContract.estimateGas.transferTicket(ticket.ticketId, recipientAddress);
-
-            // Send transaction with gas limit
             const tx = await eventContract.transferTicket(ticket.ticketId, recipientAddress, {
-                gasLimit: gasEstimate.mul(110).div(100), // Add 10% buffer
+                gasLimit: gasEstimate.mul(110).div(100),
             });
 
             await tx.wait();
 
             alert('Ticket transferred successfully!');
-            // Refresh the tickets list
+
             await fetchTickets();
         } catch (error) {
             console.error('Error transferring ticket:', error);
@@ -140,7 +132,6 @@ const MyTickets = () => {
                 alert(`Error transferring ticket: ${error.message || error}`);
             }
         } finally {
-            // Set transferring state to false for this ticket
             setTransferringTickets((prevState) => ({
                 ...prevState,
                 [ticket.ticketId]: false,

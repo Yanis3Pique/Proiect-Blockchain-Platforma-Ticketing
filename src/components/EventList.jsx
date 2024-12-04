@@ -5,7 +5,7 @@ import TicketingPlatform from "../abis/TicketingPlatform.json";
 import EventContractJSON from "../abis/EventContract.json";
 
 const EventList = () => {
-    const { account, active: isConnected, library } = useWeb3React();
+    const { account, active: isConnected, library } = useWeb3React(); // Hook pentru conectarea la Web3
     const [balance, setBalance] = useState(null);
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -13,13 +13,13 @@ const EventList = () => {
     const TicketingPlatformABI = TicketingPlatform.abi;
     const EventContractABI = EventContractJSON.abi;
 
-    // Fetch balance when connected
+    // Fetch balanta utilizatorului conectat
     useEffect(() => {
         const fetchBalance = async () => {
             if (library && account) {
                 try {
                     const fetchedBalance = await library.getBalance(account);
-                    setBalance(ethers.utils.formatEther(fetchedBalance));
+                    setBalance(ethers.utils.formatEther(fetchedBalance)); // Formateaza balanta in ETH
                 } catch (error) {
                     console.error('Error fetching balance:', error);
                 }
@@ -31,6 +31,8 @@ const EventList = () => {
         }
     }, [isConnected, library, account]);
 
+
+    // Fetch lista de evenimente din contractul platformei
     const fetchEvents = async () => {
         try {
             const provider = library || new ethers.providers.Web3Provider(window.ethereum);
@@ -42,7 +44,7 @@ const EventList = () => {
                 provider
             );
 
-            // Get the total number of events
+            // Obtine numarul total de evenimente
             const nextEventId = await platformContract.nextEventId();
 
             const fetchedEvents = [];
@@ -65,7 +67,7 @@ const EventList = () => {
                     eventId: eventIdBN.toNumber(),
                     eventName,
                     eventLocation,
-                    eventDate: eventDateBN.toNumber() * 1000, // Convert to milliseconds
+                    eventDate: eventDateBN.toNumber() * 1000,  // Converteste timestamp-ul in milisecunde
                     ticketPriceUSD: ticketPriceUSDBN.toNumber(),
                     ticketsAvailable: ticketsAvailableBN.toNumber(),
                     organizer,
@@ -82,9 +84,9 @@ const EventList = () => {
         }
     };
 
-    // Fetch events and set up event listeners
+    // Setup event listeners pentru reactii la evenimentele din contract
     useEffect(() => {
-        fetchEvents();
+        fetchEvents(); // Fetch initial lista de evenimente
 
         const setupEventListeners = async () => {
             if (!library) return;
@@ -102,24 +104,24 @@ const EventList = () => {
                 const eventAddress = await platformContract.getEventAddress(eventId);
                 const eventContract = new ethers.Contract(eventAddress, EventContractABI, provider);
 
-                // Listen for TicketPurchased events
+
                 const handleTicketPurchased = async (ticketId, buyer) => {
                     console.log(`Ticket ${ticketId} purchased by ${buyer}`);
-                    // Refresh events
+
                     await fetchEvents();
                 };
 
-                // Listen for EventCancelled events
+
                 const handleEventCancelled = async () => {
                     console.log(`Event at ${eventAddress} has been cancelled.`);
-                    // Refresh events
+
                     await fetchEvents();
                 };
 
                 eventContract.on("TicketPurchased", handleTicketPurchased);
                 eventContract.on("EventCancelled", handleEventCancelled);
 
-                // Clean up listeners when component unmounts
+                // Oprim listener-ele la final
                 return () => {
                     eventContract.off("TicketPurchased", handleTicketPurchased);
                     eventContract.off("EventCancelled", handleEventCancelled);
@@ -129,13 +131,12 @@ const EventList = () => {
 
         setupEventListeners();
 
-        // Clean up function
+
         return () => {
-            // No need to clean up here because we return cleanup functions inside setupEventListeners
+            // Cleanup general
         };
     }, [library]);
 
-    // Function to handle ticket purchase
     const handleBuyTickets = async (event) => {
         if (event.isCancelled) {
             alert('This event has been cancelled.');
@@ -151,12 +152,11 @@ const EventList = () => {
         try {
             const provider = library || new ethers.providers.Web3Provider(window.ethereum);
             const signer = provider.getSigner();
-
-            // Prompt user for number of tickets
             const quantityStr = prompt('Enter the number of tickets you want to buy:', '1');
+
             if (!quantityStr) {
                 setBuyingTicket(false);
-                return; // User cancelled the prompt
+                return;
             }
             const quantity = parseInt(quantityStr);
             if (isNaN(quantity) || quantity <= 0) {
@@ -171,25 +171,19 @@ const EventList = () => {
                 return;
             }
 
-            // Connect to the event contract
             const eventContract = new ethers.Contract(event.eventAddress, EventContractABI, signer);
-
-            // Get the total price with the service fee from the contract
             const totalPriceWithFee = await eventContract.getTotalPriceWithFee(quantity);
-
-            // Estimate gas
             const gasEstimate = await eventContract.estimateGas.buyTickets(quantity, { value: totalPriceWithFee });
 
-            // Inform user
             alert('Transaction is being processed. Please wait...');
 
-            // Call the buyTickets function, sending the required value and gas limit
+
             const tx = await eventContract.buyTickets(quantity, {
                 value: totalPriceWithFee,
-                gasLimit: gasEstimate.mul(110).div(100), // Add 10% buffer
+                gasLimit: gasEstimate.mul(110).div(100),  // Adauga 10% buffer pentru estimarea gazului
             });
 
-            // Wait for the transaction to be mined
+            // Asteptam sa fie minata tranzactia
             await tx.wait();
             alert('Tickets purchased successfully!');
             await fetchEvents();
@@ -215,7 +209,7 @@ const EventList = () => {
         return <div>Loading events...</div>;
     }
 
-    const activeEvents = events.filter(event => !event.isCancelled);
+    const activeEvents = events.filter(event => !event.isCancelled); // Filtreaza doar evenimentele active
 
     return (
         <div>
@@ -234,8 +228,8 @@ const EventList = () => {
                 <p>No events found</p>
             ) : (
                 activeEvents.map((event, index) => {
-                    const eventDate = new Date(event.eventDate); // eventDate is already in milliseconds
-                    const isEventInPast = eventDate < new Date(); // Check if event date is in the past
+                    const eventDate = new Date(event.eventDate);
+                    const isEventInPast = eventDate < new Date();
 
                     return (
                         <div key={index} className="border p-4 mb-4 rounded">

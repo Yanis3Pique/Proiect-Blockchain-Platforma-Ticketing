@@ -5,11 +5,17 @@ import "./EventContract.sol";
 
 contract TicketingPlatform {
     uint256 public nextEventId;
+
+    // Mapping care asociază ID-ul unui eveniment cu adresa contractului corespunzator
     mapping(uint256 => address) public events;
 
-    event EventCreated(uint256 indexed eventId, address indexed eventAddress, address indexed organizer);
+    event EventCreated(
+        uint256 indexed eventId,
+        address indexed eventAddress,
+        address indexed organizer
+    );
 
-    // Address of the Chainlink Price Feed
+    // Adresa contractului Chainlink Price Feed utilizat pentru obtinerea pretului ETH/USD
     address public priceFeedAddress;
 
     constructor(address _priceFeedAddress) {
@@ -20,11 +26,17 @@ contract TicketingPlatform {
         string memory _eventName,
         string memory _eventLocation,
         uint256 _eventDate,
-        uint256 _ticketPriceUSD, // Ticket price in USD with no decimals (e.g., 50 for $50)
+        uint256 _ticketPriceUSD,
         uint256 _ticketsAvailable
     ) public {
-        require(_eventDate > block.timestamp, "Event date must be in the future.");
-        require(_ticketsAvailable > 0, "There must be at least one ticket available.");
+        require(
+            _eventDate > block.timestamp,
+            "Event date must be in the future."
+        );
+        require(
+            _ticketsAvailable > 0,
+            "There must be at least one ticket available."
+        );
 
         EventContract newEvent = new EventContract(
             nextEventId,
@@ -33,11 +45,12 @@ contract TicketingPlatform {
             _eventDate,
             _ticketPriceUSD,
             _ticketsAvailable,
-            payable(msg.sender), // Pass the organizer's address,
+            payable(msg.sender),
             priceFeedAddress,
-            payable(msg.sender) // Pass the organizer's address
+            payable(msg.sender)
         );
 
+        // Salvam adresa noului eveniment in mapping-ul events
         events[nextEventId] = address(newEvent);
         emit EventCreated(nextEventId, address(newEvent), msg.sender);
 
