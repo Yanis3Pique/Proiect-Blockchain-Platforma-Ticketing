@@ -18,7 +18,7 @@ const EventCreation = () => {
         if (!active || !library) return;
 
         const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const ticketingPlatformAddress = "0xC4fA925669A73c0c405d9AA6Bddb03e944091090";
+        const ticketingPlatformAddress = import.meta.env.VITE_TICKETING_PLATFORM_ADDRESS;
         const platformContract = new ethers.Contract(
             ticketingPlatformAddress,
             TicketingPlatformJSON.abi,
@@ -56,7 +56,7 @@ const EventCreation = () => {
         try {
             setLoading(true);
             const signer = library.getSigner();
-            const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
+            const ticketingPlatformAddress = import.meta.env.VITE_TICKETING_PLATFORM_ADDRESS;
             const ticketingPlatformABI = TicketingPlatformJSON.abi;
 
             const platformContract = new ethers.Contract(

@@ -16,7 +16,7 @@ const EventManagement = () => {
             try {
                 const provider = library || new ethers.providers.Web3Provider(window.ethereum);
                 const signer = provider.getSigner();
-                const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
+                const ticketingPlatformAddress = import.meta.env.VITE_TICKETING_PLATFORM_ADDRESS;
                 const platformContract = new ethers.Contract(ticketingPlatformAddress, TicketingPlatform.abi, provider);
                 const nextEventId = await platformContract.nextEventId(); // Numarul total de evenimente
                 const events = [];

@@ -36,7 +36,7 @@ const EventList = () => {
     const fetchEvents = async () => {
         try {
             const provider = library || new ethers.providers.Web3Provider(window.ethereum);
-            const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
+            const ticketingPlatformAddress = import.meta.env.VITE_TICKETING_PLATFORM_ADDRESS;
 
             const platformContract = new ethers.Contract(
                 ticketingPlatformAddress,
@@ -91,7 +91,7 @@ const EventList = () => {
         const setupEventListeners = async () => {
             if (!library) return;
             const provider = library || new ethers.providers.Web3Provider(window.ethereum);
-            const ticketingPlatformAddress = "0x6E6166713b570d92A18CF0993e33c8AC882c3be6";
+            const ticketingPlatformAddress = import.meta.env.VITE_TICKETING_PLATFORM_ADDRESS;
             const platformContract = new ethers.Contract(
                 ticketingPlatformAddress,
                 TicketingPlatformABI,
