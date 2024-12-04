@@ -46,6 +46,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         address indexed owner,
         uint256 refundAmount
     );
+    event FundsWithdrawn(uint256 amount);
     event TicketInvalidated(uint256 indexed ticketId);
 
     modifier onlyOrganizer() {
@@ -300,6 +301,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         if (success) {
             console.log("Funds withdrawn: %s", amount);
             fundsWithdrawn = true;
+            emit FundsWithdrawn(amount);
         }
         require(success, "Withdrawal failed.");
     }
