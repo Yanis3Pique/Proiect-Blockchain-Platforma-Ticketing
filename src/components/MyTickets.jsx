@@ -5,33 +5,32 @@ import EventContractJSON from '../abis/EventContract.json';
 import TicketingPlatform from '../abis/TicketingPlatform.json';
 
 const MyTickets = () => {
-    const { account, library } = useWeb3React(); // Hook pentru gestionarea conexiunii Web3
+    const { account, library } = useWeb3React();
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [transferringTickets, setTransferringTickets] = useState({});
+    const [claimingRefunds, setClaimingRefunds] = useState({});
 
     const fetchTickets = async () => {
-        if (!account || !library) return; // Daca nu exista cont sau biblioteca Web3, iesim
+        if (!account || !library) return;
 
         try {
-            const provider = library || new ethers.providers.Web3Provider(window.ethereum);
+            const provider = library;
             const ticketingPlatformAddress = import.meta.env.VITE_TICKETING_PLATFORM_ADDRESS;
             const platformContract = new ethers.Contract(ticketingPlatformAddress, TicketingPlatform.abi, provider);
 
-            const nextEventIdBN = await platformContract.nextEventId(); // Numarul total de evenimente
+            const nextEventIdBN = await platformContract.nextEventId();
             const nextEventId = nextEventIdBN.toNumber();
 
             const eventAddresses = [];
             for (let eventId = 0; eventId < nextEventId; eventId++) {
                 const eventAddress = await platformContract.getEventAddress(eventId);
-                console.log(`Event ID ${eventId} Address: ${eventAddress}`);
                 eventAddresses.push(eventAddress);
             }
 
             const fetchedTickets = [];
 
             for (const eventAddress of eventAddresses) {
-                console.log(`Processing event at address: ${eventAddress}`);
                 const eventContract = new ethers.Contract(eventAddress, EventContractJSON.abi, provider);
 
                 let eventDetails;
@@ -49,10 +48,11 @@ const MyTickets = () => {
                     eventDateBN,
                     ticketPriceUSDBN,
                     ,
+                    ,
+                    isCancelled
                 ] = eventDetails;
 
-                const eventDateTimestamp = eventDateBN.toNumber() * 1000; // Conversie la milisecunde
-
+                const eventDateTimestamp = eventDateBN.toNumber() * 1000;
 
                 let ticketIdsBN;
                 try {
@@ -65,6 +65,9 @@ const MyTickets = () => {
                 const ticketIds = ticketIdsBN.map(id => id.toNumber());
 
                 for (const ticketId of ticketIds) {
+                    const ticketDetails = await eventContract.getTicketDetails(ticketId);
+                    const [, , isValid, refundable] = ticketDetails;
+
                     const ticket = {
                         ticketId: ticketId,
                         eventAddress: eventAddress,
@@ -74,6 +77,9 @@ const MyTickets = () => {
                         eventDateTimestamp: eventDateTimestamp,
                         eventDateString: new Date(eventDateTimestamp).toLocaleString(),
                         ticketPriceUSD: ticketPriceUSDBN.toNumber(),
+                        isCancelled,
+                        isValid,
+                        isRefundable: refundable
                     };
 
                     fetchedTickets.push(ticket);
@@ -106,11 +112,10 @@ const MyTickets = () => {
                 ...prevState,
                 [ticket.ticketId]: true,
             }));
-            const provider = library || new ethers.providers.Web3Provider(window.ethereum);
+            const provider = library;
             const signer = provider.getSigner();
             const eventContract = new ethers.Contract(ticket.eventAddress, EventContractJSON.abi, signer);
 
-            // Estimam gazul necesar
             const gasEstimate = await eventContract.estimateGas.transferTicket(ticket.ticketId, recipientAddress);
             const tx = await eventContract.transferTicket(ticket.ticketId, recipientAddress, {
                 gasLimit: gasEstimate.mul(110).div(100),
@@ -139,6 +144,39 @@ const MyTickets = () => {
         }
     };
 
+    const handleClaimRefund = async (ticket) => {
+        try {
+            setClaimingRefunds((prevState) => ({
+                ...prevState,
+                [ticket.ticketId]: true,
+            }));
+            const provider = library;
+            const signer = provider.getSigner();
+            const eventContract = new ethers.Contract(ticket.eventAddress, EventContractJSON.abi, signer);
+
+            const tx = await eventContract.claimRefund(ticket.ticketId);
+            await tx.wait();
+
+            alert('Refund claimed successfully!');
+            await fetchTickets();
+        } catch (error) {
+            console.error('Error claiming refund:', error);
+            if (error.code === 'USER_REJECTED_TRANSACTION') {
+                alert('Transaction rejected by the user.');
+            } else if (error.data && error.data.message) {
+                const reason = error.data.message;
+                alert(`Transaction failed: ${reason}`);
+            } else {
+                alert(`Error claiming refund: ${error.message || error}`);
+            }
+        } finally {
+            setClaimingRefunds((prevState) => ({
+                ...prevState,
+                [ticket.ticketId]: false,
+            }));
+        }
+    };
+
     if (loading) {
         return <div>Loading your tickets...</div>;
     }
@@ -159,7 +197,15 @@ const MyTickets = () => {
                         <p>Ticket ID: {ticket.ticketId}</p>
                         <p>Event Date: {ticket.eventDateString}</p>
                         <p>Location: {ticket.eventLocation}</p>
-                        {!isEventDatePassed ? (
+                        {ticket.isCancelled && ticket.isRefundable ? (
+                            <button
+                                className="mt-2 bg-red-500 text-white p-2 rounded disabled:opacity-50"
+                                onClick={() => handleClaimRefund(ticket)}
+                                disabled={claimingRefunds[ticket.ticketId]}
+                            >
+                                {claimingRefunds[ticket.ticketId] ? 'Claiming Refund...' : 'Claim Refund'}
+                            </button>
+                        ) : !isEventDatePassed && ticket.isValid ? (
                             <button
                                 className="mt-2 bg-blue-500 text-white p-2 rounded disabled:opacity-50"
                                 onClick={() => handleTransferTicket(ticket)}
@@ -168,7 +214,7 @@ const MyTickets = () => {
                                 {transferringTickets[ticket.ticketId] ? 'Transferring...' : 'Transfer Ticket'}
                             </button>
                         ) : (
-                            <p className="text-gray-500">Event has passed. Cannot transfer ticket.</p>
+                            <p className="text-gray-500">Ticket is no longer valid.</p>
                         )}
                     </div>
                 );

@@ -12,6 +12,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         uint256 ticketId;
         address owner;
         bool isValid;
+        bool refundable;
     }
 
     uint256 public eventId;
@@ -29,7 +30,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
     // Mapping pentru bilete, preturi si retrageri
     mapping(uint256 => Ticket) public tickets;
     mapping(uint256 => uint256) public ticketPricesPaid;
-    mapping(address => uint256) public pendingWithdrawals;
+    // mapping(address => uint256) public pendingWithdrawals;
 
     // Referinta pentru Chainlink Price Feed
     AggregatorV3Interface internal priceFeed;
@@ -166,7 +167,8 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
             tickets[ticketId] = Ticket({
                 ticketId: ticketId,
                 owner: msg.sender,
-                isValid: true
+                isValid: true,
+                refundable: false
             });
 
             ticketPricesPaid[ticketId] = ticketPriceInWei;
@@ -254,35 +256,33 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         require(!fundsWithdrawn, "Funds have already been withdrawn.");
         isCancelled = true;
 
-        refundAllTickets();
+        // Marcam toate biletele ca fiind refundabile
+        for (uint256 i = 1; i < nextTicketId; i++) {
+            if (tickets[i].isValid) {
+                tickets[i].refundable = true;
+            }
+        }
 
         emit EventCancelled();
     }
 
-    function refundAllTickets() private {
-        for (uint256 i = 1; i < nextTicketId; i++) {
-            if (tickets[i].isValid) {
-                address payable ticketOwner = payable(tickets[i].owner);
-                uint256 refundAmount = ticketPricesPaid[i];
+    // Functie pentru ca userii sa poata primi refund pentru biletele cumparate
+    function claimRefund(uint256 _ticketId) public nonReentrant {
+        require(isCancelled, "Event is not cancelled.");
+        require(tickets[_ticketId].owner == msg.sender, "You do not own this ticket.");
+        require(tickets[_ticketId].refundable, "Refund already claimed or ticket not refundable.");
 
-                tickets[i].isValid = false;
-                _burn(i);
+        uint256 refundAmount = ticketPricesPaid[_ticketId];
+        require(refundAmount > 0, "No refund amount available.");
 
-                if (refundAmount > 0) {
-                    (bool success, ) = ticketOwner.call{value: refundAmount}(
-                        ""
-                    );
-                    if (success) {
-                        emit TicketRefunded(i, ticketOwner, refundAmount);
-                    } else {
-                        pendingWithdrawals[ticketOwner] += refundAmount;
-                    }
-                }
-            }
-            if (!tickets[i].isValid) {
-                _burn(i);
-            }
-        }
+        tickets[_ticketId].refundable = false;
+        tickets[_ticketId].isValid = false;
+        _burn(_ticketId);
+
+        (bool success, ) = msg.sender.call{value: refundAmount}("");
+        require(success, "Refund transfer failed.");
+
+        emit TicketRefunded(_ticketId, msg.sender, refundAmount);
     }
 
     function withdrawFunds() public onlyOwner nonReentrant {
@@ -331,6 +331,21 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
             owner(),
             isCancelled,
             fundsWithdrawn
+        );
+    }
+
+    function getTicketDetails(uint256 _ticketId) external view returns (
+        uint256 ticketId,
+        address owner,
+        bool isValid,
+        bool refundable
+    ) {
+        Ticket memory ticket = tickets[_ticketId];
+        return (
+            ticket.ticketId,
+            ticket.owner,
+            ticket.isValid,
+            ticket.refundable
         );
     }
 
