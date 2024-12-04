@@ -241,6 +241,11 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard {
         uint256[] memory _ticketIds
     ) public onlyOrganizer {
         for (uint256 i = 0; i < _ticketIds.length; i++) {
+            require(
+                block.timestamp < eventDate + 30 minutes,
+                "Cannot invalidate tickets after 30 minutes after event date."
+            );
+            require(tickets[_ticketIds[i]].isValid, "Ticket is already invalid.");
             uint256 ticketId = _ticketIds[i];
             if (tickets[ticketId].isValid) {
                 _burn(ticketId);

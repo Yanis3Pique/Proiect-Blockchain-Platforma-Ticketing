@@ -189,7 +189,11 @@ const MyTickets = () => {
         <div>
             <h2 className="text-2xl mb-4">My Tickets</h2>
             {tickets.map((ticket, index) => {
-                const isEventDatePassed = ticket.eventDateTimestamp < Date.now();
+                // Adaugam 30 de minute la eventDate-ul evenimentului
+                const isEventDatePassed = Date.now() > ticket.eventDateTimestamp + 30 * 60 * 1000;
+                console.log('isEventDatePassed', isEventDatePassed);
+                console.log('ticket', ticket);
+                console.log(Date.now(), '>' , ticket.eventDateTimestamp + 30 * 60 * 1000);
 
                 return (
                     <div key={index} className="border p-4 mb-4 rounded">
