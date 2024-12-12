@@ -2,7 +2,7 @@ async function main() {
   const [deployer, organizer, buyer1, buyer2, unauthorized] = await ethers.getSigners();
 
   // The address where the TicketingPlatform contract is deployed
-  const contractAddress = "0x3f634aEa17725685E16616382a69AB89e87E88d5"; // Replace with your deployed address
+  const contractAddress = "0x3f634aEa17725685E16616382a69AB89e87E88d5";
 
   // Attach to the deployed TicketingPlatform contract
   const TicketingPlatform = await ethers.getContractFactory("TicketingPlatform");
@@ -155,9 +155,7 @@ async function main() {
   await invalidateTicketsTx.wait();
   console.log(`Tickets ${ticketIdsToInvalidate.join(", ")} invalidated.`);
 
-  // Organizer attempts to withdraw funds before cancellation (should succeed)
-  // Assuming there's another event that hasn't been canceled
-  // For this test, let's deploy a new event and simulate ticket purchases
+
   const newEventTx = await ticketingPlatform.connect(organizer).createEvent(
     "Conference",
     "Convention Center",
